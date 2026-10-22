@@ -1,0 +1,91 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+
+const source = await readFile(fileURLToPath(new URL('../client.js', import.meta.url)), 'utf8');
+
+let module;
+globalThis.window = { __ModuleLoader__: { load: (value) => { module = value; } } };
+new Function(source)();
+globalThis.window = undefined;
+
+const react = {
+  createElement: () => null,
+  Fragment: Symbol('Fragment'),
+  useCallback: (fn) => fn,
+  useEffect: () => {},
+  useMemo: (fn) => fn(),
+  useRef: (value) => ({ current: value }),
+  useState: (value) => [typeof value === 'function' ? value() : value, () => {}],
+  useSyncExternalStore: (_subscribe, get) => get(),
+};
+const api = module.factory((name) => {
+  if (name === 'react') return react;
+  throw new Error(`unexpected module ${name}`);
+}).__test;
+
+test('annotation payload survives the model-facing round trip', () => {
+  const annotations = [
+    { text: 'a < b & c', comment: 'why?' },
+    { text: 'line1\nline2' },
+  ];
+  const parsed = api.parseAsideContext(`${api.serializeAnnotations(annotations)}\n\nMy real question`);
+  assert.deepEqual(parsed, { annotations, message: 'My real question' });
+});
+
+test('plain messages are not treated as annotations', () => {
+  assert.equal(api.parseAsideContext('hello <aside_context>'), undefined);
+});
+
+test('chip payload rejects a foreign version and keeps anchors', () => {
+  const anchor = { nodeKey: 'user-3', nodeKind: 'user', turnKey: 'turn:2', seq: 7, startOffset: 4, endOffset: 12 };
+  const ref = JSON.stringify(api.chipPayload('session-1', [{ text: 'passage', anchor }]));
+  assert.deepEqual(api.decodeChip(ref), { sessionId: 'session-1', annotations: [{ text: 'passage', anchor }] });
+  assert.equal(api.decodeChip(JSON.stringify({ version: 99, annotations: [] })), undefined);
+  assert.equal(api.decodeChip('not json'), undefined);
+});
+
+test('a chip is one atomic editor span even behind another reference', () => {
+  const snapshot = {
+    draft: '[file] passage',
+    draftRev: 4,
+    occurrences: [
+      { offset: 0, length: 6, label: '[file]', clipboardText: '[file]', source: 'file', occurrenceId: 'a' },
+      { offset: 7, length: 7, label: '__dsh_aside_annotations__', clipboardText: 'passage', source: 'aside-annotations', occurrenceId: 'b' },
+    ],
+  };
+  const span = api.occurrenceEditSpan(snapshot, snapshot.occurrences[1]);
+  assert.deepEqual(span, { start: 2, end: 3, draftRev: 4 });
+  const stale = { ...snapshot, draft: '[file] other' };
+  assert.equal(api.occurrenceEditSpan(stale, stale.occurrences[1]), undefined);
+});
+
+test('annotations are read from the chips and count once per payload', () => {
+  const ref = JSON.stringify(api.chipPayload('s', [{ text: 'one' }, { text: 'two', comment: 'note' }]));
+  const snapshot = {
+    draft: 'onetwo', draftRev: 1,
+    occurrences: [{ offset: 0, length: 6, label: '__dsh_aside_annotations__', clipboardText: 'one\n\ntwo', source: 'aside-annotations', occurrenceId: 'c' }],
+  };
+  snapshot.draft = 'one\n\ntwo';
+  snapshot.occurrences[0].ref = ref;
+  assert.deepEqual(api.readAnnotations(snapshot), [
+    { text: 'one', sessionId: 's' },
+    { text: 'two', comment: 'note', sessionId: 's' },
+  ]);
+});
+
+test('the toolbar prefers above, flips below, and stays inside the viewport', () => {
+  const bounds = { top: 100, bottom: 700, left: 0, right: 800 };
+  const above = api.placeFloating({ top: 300, bottom: 320, left: 40, right: 200 }, { width: 320, height: 36 }, bounds);
+  assert.equal(above.placement, 'above');
+  assert.equal(above.top, 300 - 36 - 8);
+  assert.equal(above.left, 40);
+
+  const below = api.placeFloating({ top: 110, bottom: 130, left: 40, right: 200 }, { width: 320, height: 36 }, bounds);
+  assert.equal(below.placement, 'below');
+  assert.equal(below.top, 138);
+
+  const right = api.placeFloating({ top: 300, bottom: 320, left: 790, right: 800 }, { width: 320, height: 36 }, bounds);
+  assert.equal(right.left, 800 - 320 - 8);
+});
