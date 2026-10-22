@@ -34,6 +34,14 @@ test('annotation payload survives the model-facing round trip', () => {
   assert.deepEqual(parsed, { annotations, message: 'My real question' });
 });
 
+test('client and host declare the same four methods', async () => {
+  const host = await readFile(fileURLToPath(new URL('../lib/typert.js', import.meta.url)), 'utf8');
+  for (const method of ['create', 'stream', 'cancel', 'close']) {
+    assert.ok(source.includes(`wireInvocation('${method}'`), `client.js must declare ${method}`);
+    assert.ok(host.includes(`descriptor('${method}'`), `lib/typert.js must declare ${method}`);
+  }
+});
+
 test('plain messages are not treated as annotations', () => {
   assert.equal(api.parseAsideContext('hello <aside_context>'), undefined);
 });

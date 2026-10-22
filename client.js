@@ -12,6 +12,68 @@ window.__ModuleLoader__.load({
       useSyncExternalStore,
     } = React;
 
+    // The Client mounts its own wire declaration: same identity and strict codecs
+    // as lib/typert.js, rebuilt here because a raw client module cannot import the
+    // Host half. `zod` comes from the browser module table.
+    function wireInvocation(method, requestType, requestSchema, resultType, resultSchema, options = {}) {
+      return {
+        id: `dsh-aside#aside/${method}`,
+        service: 'aside',
+        namespace: 'aside',
+        method,
+        implementation: method,
+        invocation: { kind: 'direct' },
+        ...(options.stream ? { mode: 'stream' } : {}),
+        ...(options.cancellation ? { cancellation: { parameter: 'signal' } } : {}),
+        parameters: [{
+          name: 'request',
+          wire: 'request',
+          source: 'json',
+          codec: { mode: 'strict', typeSymbol: `dsh-aside/remote#${requestType}`, create: () => requestSchema },
+        }],
+        result: { mode: 'strict', typeSymbol: `dsh-aside/remote#${resultType}`, create: () => resultSchema },
+        sourceLocation: { file: 'lib/typert.js', line: 1, column: 1 },
+      };
+    }
+
+    function wireRemote(zod) {
+      const id = zod.string().min(1).max(512);
+      const wireError = zod.strictObject({ code: zod.string(), message: zod.string(), recoverable: zod.boolean() });
+      const envelope = shape => zod.union([
+        zod.strictObject({ ok: zod.literal(true), value: shape }),
+        zod.strictObject({ ok: zod.literal(false), error: wireError }),
+      ]);
+      const modelSelection = zod.strictObject({ provider: id, model: id, reasoningEffort: id.optional() });
+      const createRequest = zod.strictObject({
+        parentSessionId: id,
+        atSeq: zod.number().int().nonnegative(),
+        selectedText: zod.string().max(16384).optional(),
+        modelSelection: modelSelection.optional(),
+      });
+      const createValue = zod.strictObject({
+        chatId: id,
+        boundarySeq: zod.number().int().nonnegative(),
+        modelSelection,
+      });
+      const streamRequest = zod.strictObject({ chatId: id, requestId: id, text: zod.string().min(1).max(65536) });
+      const streamEvent = zod.union([
+        zod.strictObject({ type: zod.literal('started'), requestId: id }),
+        zod.strictObject({ type: zod.literal('content'), text: zod.string(), reasoning: zod.string() }),
+        zod.strictObject({ type: zod.literal('finished'), status: zod.enum(['complete', 'stopped']) }),
+        zod.strictObject({ type: zod.literal('error'), error: wireError }),
+      ]);
+      const chatRequest = zod.strictObject({ chatId: id });
+      return {
+        package: 'dsh-aside',
+        descriptors: [
+          wireInvocation('create', 'CreateRequest', createRequest, 'CreateResult', envelope(createValue), { cancellation: true }),
+          wireInvocation('stream', 'StreamRequest', streamRequest, 'StreamEvent', streamEvent, { stream: true, cancellation: true }),
+          wireInvocation('cancel', 'ChatRequest', chatRequest, 'CancelResult', envelope(zod.strictObject({ cancelled: zod.literal(true) }))),
+          wireInvocation('close', 'ChatRequest', chatRequest, 'CloseResult', envelope(zod.strictObject({ closed: zod.literal(true) }))),
+        ],
+      };
+    }
+
     const SOURCE = 'aside-annotations';
     const CHIP_LABEL = '__dsh_aside_annotations__';
     const PAYLOAD_VERSION = 1;
@@ -1135,7 +1197,7 @@ window.__ModuleLoader__.load({
 
       ctx.effect(() => {
         let disposed = false;
-        void ctx.remote.$mount(TYPERT_REMOTE).then((dispose) => {
+        void ctx.remote.$mount(wireRemote(require('zod'))).then((dispose) => {
           if (disposed) { dispose(); return; }
           mounted = ctx.get('remote.aside');
           return () => { mounted = undefined; dispose(); };
