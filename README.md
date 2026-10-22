@@ -82,11 +82,13 @@ npm test
 
 `node --test`，无框架。覆盖：XML 序列化/解析往返、转义、芯片原子 span 换算（含多引用）、注释反解、工具条定位（上方 / 翻下 / 夹边）、Client/Host 线上方法名一致。
 
+注释为必填：文本框为空时“保存”不可用。
+
 ## 已知限制与风险
 
 - **线上声明写了两份**：Host 用 `lib/typert.js`，Client 在 `client.js` 里用 `require('zod')` 重建。原始客户端模块不能 import Host 文件，所以暂时重复。改方法名或参数时必须两边同步；测试会检查四个方法名两边都在。
 - **私有契约**：`data-chat-anchor-key`、`data-composer-chip`、`data-conversation-scroll`、`data-composer-seat`、`InputState`（`draft` / `occurrences` / `insertReference` / `replaceText`）、`sidebar.right.pane.tab` 的注入 props。DSH 升级要回归。
-- **侧边栏参数通道未在真机验证**：面板从 `props.tab.navigation.params` 取选区。取不到时显示错误，不崩溃。若该版本不传，需要改为会话级内存表。
+- **侧边栏参数通道**：面板用槽位注入的 `useTabInfo()` 读 `tab.navigation.params` 取选区（`props.tab` 不存在，已实测）。取不到时显示错误，不崩溃。
 - 只支持单条消息内选择。跨消息选择不弹工具条。
 - 芯片被压成 0 尺寸。Lexical 光标通常正常。若某版本异常，退回可见胶囊：删掉 `[data-composer-chip="aside-annotations"]` 那条 CSS。
 - 无模型选择器。侧栏沿用父会话模型。

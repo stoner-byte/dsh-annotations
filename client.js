@@ -84,7 +84,7 @@ window.__ModuleLoader__.load({
     const BAR_HEIGHT = 36;
     const BAR_WIDTH = 320;
 
-    const CSS = `
+    const STYLES = `
 .dsh-aside-bar{position:fixed;z-index:80;display:flex;align-items:center;gap:2px;height:${BAR_HEIGHT}px;padding:3px;border-radius:10px;
   background:var(--dsh-surface-raised,color-mix(in srgb, Canvas 92%, CanvasText 8%));color:inherit;
   border:1px solid var(--dsh-border-subtle,rgba(127,127,127,.28));box-shadow:0 8px 24px rgba(0,0,0,.16);
@@ -101,6 +101,7 @@ window.__ModuleLoader__.load({
   background:transparent;border:1px solid var(--dsh-border-subtle,rgba(127,127,127,.3));outline:none}
 .dsh-aside-editor textarea:focus{border-color:var(--dsh-accent,#3b82f6)}
 .dsh-aside-editor-actions{display:flex;align-items:center;gap:6px}
+.dsh-aside-editor-actions button:disabled{opacity:.45;cursor:default}
 .dsh-aside-editor-actions .dsh-aside-spacer{flex:1}
 .dsh-aside-button{all:unset;display:inline-flex;align-items:center;height:26px;padding:0 10px;border-radius:7px;cursor:pointer;
   font:500 12.5px/1 var(--dsh-font-family,system-ui,sans-serif)}
@@ -179,14 +180,14 @@ window.__ModuleLoader__.load({
     const MESSAGES = {
       zh: {
         add: '添加到对话', ask: '在侧边聊天中提问', annotations: '条注释', quote: '所选文本',
-        commentPlaceholder: '补充说明（可选）', cancel: '取消', save: '保存', remove: '删除',
+        commentPlaceholder: '注释（必填）', cancel: '取消', save: '保存', remove: '删除',
         clearAll: '清除全部', aside: '旁注讨论', empty: '这段对话是临时的，只用于讨论所选内容。',
         inputPlaceholder: '就所选内容提问…', send: '发送', stop: '停止', thinking: '思考中…',
         inherited: '使用主会话模型', close: '关闭', thinkingLabel: '思考',
       },
       en: {
         add: 'Add to chat', ask: 'Ask in side chat', annotations: 'annotations', quote: 'Selected text',
-        commentPlaceholder: 'Add a note (optional)', cancel: 'Cancel', save: 'Save', remove: 'Remove',
+        commentPlaceholder: 'Note (required)', cancel: 'Cancel', save: 'Save', remove: 'Remove',
         clearAll: 'Clear all', aside: 'Aside', empty: 'This discussion is temporary and only sees the selected passage.',
         inputPlaceholder: 'Ask about this passage…', send: 'Send', stop: 'Stop', thinking: 'Thinking…',
         inherited: 'Using the parent model', close: 'Close', thinkingLabel: 'Reasoning',
@@ -589,7 +590,8 @@ window.__ModuleLoader__.load({
       const messages = MESSAGES[locale];
       const [comment, setComment] = useState(initialComment ?? '');
       const areaRef = useRef(null);
-      const save = () => onSave(comment.trim() === '' ? undefined : comment.trim());
+      const canSave = comment.trim().length > 0;
+      const save = () => { if (canSave) onSave(comment.trim()); };
       useEffect(() => {
         areaRef.current?.focus();
         areaRef.current?.setSelectionRange(areaRef.current.value.length, areaRef.current.value.length);
@@ -615,7 +617,7 @@ window.__ModuleLoader__.load({
           onRemove === undefined ? null : h('button', { type: 'button', className: 'dsh-aside-button dsh-aside-button-danger', onClick: onRemove }, messages.remove),
           h('span', { className: 'dsh-aside-spacer' }),
           h('button', { type: 'button', className: 'dsh-aside-button', onClick: onCancel }, messages.cancel),
-          h('button', { type: 'button', className: 'dsh-aside-button dsh-aside-button-primary', onClick: save }, messages.save),
+          h('button', { type: 'button', className: 'dsh-aside-button dsh-aside-button-primary', disabled: !canSave, onClick: save }, messages.save),
         ),
       );
     }
@@ -965,6 +967,17 @@ window.__ModuleLoader__.load({
         };
       }, [access]);
 
+      const editorBoxRef = useRef(null);
+      useEffect(() => {
+        const box = editorBoxRef.current;
+        if (box === null || editor === null) return;
+        const rect = editor.seed.rect ?? bar?.rect;
+        if (rect === undefined) return;
+        const placed = placeFloating(rect, { width: box.offsetWidth, height: box.offsetHeight }, readBounds());
+        box.style.top = `${String(placed.top)}px`;
+        box.style.left = `${String(placed.left)}px`;
+      }, [editor]);
+
       const openEditor = (seed) => {
         const bars = bar;
         const bounds = readBounds();
@@ -1029,11 +1042,12 @@ window.__ModuleLoader__.load({
           style: { top: `${String(bar.placed.top)}px`, left: `${String(bar.placed.left)}px` },
           onMouseDown: event => event.preventDefault(),
         },
-          h('button', { type: 'button', onClick: () => openEditor({ text: bar.text, anchor: bar.anchor, sessionId: bar.sessionId }) },
+          h('button', { type: 'button', onClick: () => openEditor({ text: bar.text, anchor: bar.anchor, sessionId: bar.sessionId, rect: bar.rect }) },
             h(IconQuote), messages.add),
           h('button', { type: 'button', onClick: ask }, h(IconAsk), messages.ask),
         ),
         editor === null ? null : h('div', {
+          ref: editorBoxRef,
           style: { position: 'fixed', top: `${String(editor.placed.top)}px`, left: `${String(editor.placed.left)}px`, zIndex: 81 },
         },
           h(AnnotationEditor, {
@@ -1110,7 +1124,7 @@ window.__ModuleLoader__.load({
       ctx.effect(() => {
         const style = document.createElement('style');
         style.dataset.dshAside = '';
-        style.textContent = CSS;
+        style.textContent = STYLES;
         document.head.append(style);
         return () => style.remove();
       }, 'dsh-aside.styles');
@@ -1183,9 +1197,12 @@ window.__ModuleLoader__.load({
           name: 'sidebar.right.pane.tab',
           key: 'dsh-aside',
         }, (props) => {
-          const params = props?.tab?.navigation?.params ?? {};
+          const hook = props?.useTabInfo;
+          const tab = typeof hook === 'function' ? hook().tab : undefined;
+          const params = tab?.navigation?.params ?? {};
           const sessionId = typeof params.sessionId === 'string' ? params.sessionId
-            : typeof props?.sessionId === 'string' ? props.sessionId : undefined;
+            : typeof props?.sessionId === 'string' ? props.sessionId
+              : typeof tab?.sessionId === 'string' ? tab.sessionId : undefined;
           return h(AsidePanel, { ctx, access, locale, params: {
             sessionId,
             atSeq: typeof params.atSeq === 'number' ? params.atSeq : undefined,
