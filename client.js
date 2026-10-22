@@ -81,6 +81,8 @@ window.__ModuleLoader__.load({
     const HIGHLIGHT_ALL = 'dsh-aside-annotation';
     const HIGHLIGHT_ACTIVE = 'dsh-aside-active';
     const GAP = 8;
+    const EDITOR_GAP = 18;
+    const MARKER_SIZE = 18;
     const BAR_HEIGHT = 36;
     const BAR_WIDTH = 320;
 
@@ -101,7 +103,6 @@ window.__ModuleLoader__.load({
   background:transparent;border:1px solid var(--dsh-border-subtle,rgba(127,127,127,.3));outline:none}
 .dsh-aside-editor textarea:focus{border-color:var(--dsh-accent,#3b82f6)}
 .dsh-aside-editor-actions{display:flex;align-items:center;gap:6px}
-.dsh-aside-editor-actions button:disabled{opacity:.45;cursor:default}
 .dsh-aside-editor-actions .dsh-aside-spacer{flex:1}
 .dsh-aside-button{all:unset;display:inline-flex;align-items:center;height:26px;padding:0 10px;border-radius:7px;cursor:pointer;
   font:500 12.5px/1 var(--dsh-font-family,system-ui,sans-serif)}
@@ -180,14 +181,14 @@ window.__ModuleLoader__.load({
     const MESSAGES = {
       zh: {
         add: '添加到对话', ask: '在侧边聊天中提问', annotations: '条注释', quote: '所选文本',
-        commentPlaceholder: '注释（必填）', cancel: '取消', save: '保存', remove: '删除',
+        commentPlaceholder: '添加可选评论…', cancel: '取消', save: '保存', remove: '删除',
         clearAll: '清除全部', aside: '旁注讨论', empty: '这段对话是临时的，只用于讨论所选内容。',
         inputPlaceholder: '就所选内容提问…', send: '发送', stop: '停止', thinking: '思考中…',
         inherited: '使用主会话模型', close: '关闭', thinkingLabel: '思考',
       },
       en: {
         add: 'Add to chat', ask: 'Ask in side chat', annotations: 'annotations', quote: 'Selected text',
-        commentPlaceholder: 'Note (required)', cancel: 'Cancel', save: 'Save', remove: 'Remove',
+        commentPlaceholder: 'Add an optional comment…', cancel: 'Cancel', save: 'Save', remove: 'Remove',
         clearAll: 'Clear all', aside: 'Aside', empty: 'This discussion is temporary and only sees the selected passage.',
         inputPlaceholder: 'Ask about this passage…', send: 'Send', stop: 'Stop', thinking: 'Thinking…',
         inherited: 'Using the parent model', close: 'Close', thinkingLabel: 'Reasoning',
@@ -344,11 +345,11 @@ window.__ModuleLoader__.load({
     }
 
     /** Place a floating control above the selection, or below when there is no room. */
-    function placeFloating(rect, size, bounds) {
+    function placeFloating(rect, size, bounds, gap = GAP) {
       const width = size.width ?? 0;
       const height = size.height ?? BAR_HEIGHT;
-      const fitsAbove = rect.top - height - GAP >= bounds.top + 4;
-      const top = fitsAbove ? rect.top - height - GAP : rect.bottom + GAP;
+      const fitsAbove = rect.top - height - gap >= bounds.top + 4;
+      const top = fitsAbove ? rect.top - height - gap : rect.bottom + gap;
       const maxTop = Math.max(bounds.top + 4, bounds.bottom - height - 4);
       return {
         placement: fitsAbove ? 'above' : 'below',
@@ -529,6 +530,65 @@ window.__ModuleLoader__.load({
       }
     }
 
+    /** The visual line under a double-click: the caret's own text node,
+     *  narrowed to the line the point falls on (a text node often holds the
+     *  whole message). Blank carets fall back to the nearest non-blank text. */
+    function lineRangeOf(host, container, offset) {
+      const nodes = textNodesOf(host);
+      let index = nodes.indexOf(container);
+      if (index < 0 && container.nodeType !== Node.TEXT_NODE) {
+        index = nodes.findIndex(node => container.contains(node));
+      }
+      if (index < 0) return;
+      const byLine = (node, at) => {
+        const value = node.nodeValue ?? '';
+        const rectAt = (position) => {
+          const range = document.createRange();
+          range.setStart(node, position);
+          range.setEnd(node, Math.min(position + 1, value.length));
+          return range.getClientRects()[0];
+        };
+        let caret = Math.min(Math.max(at, 0), Math.max(value.length - 1, 0));
+        let probe = rectAt(caret);
+        if (probe === undefined && caret > 0) { caret -= 1; probe = rectAt(caret); }
+        if (probe === undefined) return;
+        const top = probe.top;
+        const same = (position) => {
+          const rect = rectAt(position);
+          return rect !== undefined && Math.abs(rect.top - top) < 2;
+        };
+        let from = caret;
+        while (from > 0 && same(from - 1)) from -= 1;
+        let to = caret + 1;
+        while (to < value.length && same(to)) to += 1;
+        while (from < to && /\s/.test(value[from])) from += 1;
+        while (to > from && /\s/.test(value[to - 1])) to -= 1;
+        if (to <= from) return;
+        const range = document.createRange();
+        range.setStart(node, from);
+        range.setEnd(node, to);
+        return range;
+      };
+      const whole = (node) => {
+        const value = node.nodeValue ?? '';
+        const from = value.search(/\S/);
+        const to = value.replace(/\s+$/, '').length;
+        if (from < 0 || to <= from) return;
+        const range = document.createRange();
+        range.setStart(node, from);
+        range.setEnd(node, to);
+        return range;
+      };
+      const direct = byLine(nodes[index], offset) ?? whole(nodes[index]);
+      if (direct !== undefined) return direct;
+      for (let step = 1; step < nodes.length; step += 1) {
+        const before = whole(nodes[index - step]);
+        if (before !== undefined) return before;
+        const after = whole(nodes[index + step]);
+        if (after !== undefined) return after;
+      }
+    }
+
     function captureSelection(chat) {
       const selection = window.getSelection();
       if (selection === null || selection.isCollapsed || selection.rangeCount !== 1) return;
@@ -590,8 +650,7 @@ window.__ModuleLoader__.load({
       const messages = MESSAGES[locale];
       const [comment, setComment] = useState(initialComment ?? '');
       const areaRef = useRef(null);
-      const canSave = comment.trim().length > 0;
-      const save = () => { if (canSave) onSave(comment.trim()); };
+      const save = () => onSave(comment.trim() === '' ? undefined : comment.trim());
       useEffect(() => {
         areaRef.current?.focus();
         areaRef.current?.setSelectionRange(areaRef.current.value.length, areaRef.current.value.length);
@@ -617,7 +676,7 @@ window.__ModuleLoader__.load({
           onRemove === undefined ? null : h('button', { type: 'button', className: 'dsh-aside-button dsh-aside-button-danger', onClick: onRemove }, messages.remove),
           h('span', { className: 'dsh-aside-spacer' }),
           h('button', { type: 'button', className: 'dsh-aside-button', onClick: onCancel }, messages.cancel),
-          h('button', { type: 'button', className: 'dsh-aside-button dsh-aside-button-primary', disabled: !canSave, onClick: save }, messages.save),
+          h('button', { type: 'button', className: 'dsh-aside-button dsh-aside-button-primary', onClick: save }, messages.save),
         ),
       );
     }
@@ -893,12 +952,16 @@ window.__ModuleLoader__.load({
           const range = rangeOfAnchor(found.host, annotation.anchor);
           if (range === undefined) return;
           highlightRanges.push(range);
-          const rect = range.getBoundingClientRect();
-          if (rect.width === 0 && rect.height === 0) return;
+          const rects = [...range.getClientRects()].filter(rect => rect.height > 0);
+          if (rects.length === 0) return;
+          const first = rects[0];
+          const block = found.host.getBoundingClientRect();
+          // ponytail: gutter badge — the block's own right edge, not the
+          // selection end, so a mid-line selection never covers its text.
           next.push({
             index,
-            top: clamp(rect.top, 0, window.innerHeight - 20),
-            left: clamp(rect.right + 6, 0, window.innerWidth - 24),
+            top: clamp(first.top + (first.height - MARKER_SIZE) / 2, 0, window.innerHeight - MARKER_SIZE),
+            left: clamp(block.right + 8, 0, window.innerWidth - MARKER_SIZE - 4),
           });
         });
         if (typeof CSS !== 'undefined' && CSS.highlights !== undefined && typeof Highlight !== 'undefined') {
@@ -954,13 +1017,32 @@ window.__ModuleLoader__.load({
           onPointerDown(event);
           window.setTimeout(schedule, 0);
         };
+        const onDoubleClick = (event) => {
+          const selection = window.getSelection();
+          if (selection === null) return;
+          // A real word selection is already the user's answer; a blank one
+          // (double-click past the text end picks up a newline) is not.
+          if (!selection.isCollapsed && selection.toString().trim() !== '') return;
+          if (typeof document.caretRangeFromPoint !== 'function') return;
+          const caret = document.caretRangeFromPoint(event.clientX, event.clientY);
+          if (caret === null) return;
+          const host = chatHostOf(caret.startContainer);
+          const line = host === null ? undefined : lineRangeOf(host, caret.startContainer, caret.startOffset);
+          if (line === undefined) return;
+          selection.removeAllRanges();
+          selection.addRange(line);
+          window.clearTimeout(timer);
+          timer = window.setTimeout(capture, 0);
+        };
         document.addEventListener('pointerdown', onDown, true);
+        document.addEventListener('dblclick', onDoubleClick, true);
         document.addEventListener('pointerup', schedule, true);
         document.addEventListener('keyup', schedule, true);
         document.addEventListener('selectionchange', schedule);
         return () => {
           window.clearTimeout(timer);
           document.removeEventListener('pointerdown', onDown, true);
+          document.removeEventListener('dblclick', onDoubleClick, true);
           document.removeEventListener('pointerup', schedule, true);
           document.removeEventListener('keyup', schedule, true);
           document.removeEventListener('selectionchange', schedule);
@@ -973,7 +1055,7 @@ window.__ModuleLoader__.load({
         if (box === null || editor === null) return;
         const rect = editor.seed.rect ?? bar?.rect;
         if (rect === undefined) return;
-        const placed = placeFloating(rect, { width: box.offsetWidth, height: box.offsetHeight }, readBounds());
+        const placed = placeFloating(rect, { width: box.offsetWidth, height: box.offsetHeight }, readBounds(), EDITOR_GAP);
         box.style.top = `${String(placed.top)}px`;
         box.style.left = `${String(placed.left)}px`;
       }, [editor]);
@@ -982,7 +1064,7 @@ window.__ModuleLoader__.load({
         const bars = bar;
         const bounds = readBounds();
         const rect = seed !== undefined && seed.rect !== undefined ? seed.rect : bars?.rect ?? { top: bounds.top + 80, bottom: bounds.top + 80, left: 24, right: 24 };
-        const placed = placeFloating(rect, { width: 320, height: 150 }, bounds);
+        const placed = placeFloating(rect, { width: 320, height: 150 }, bounds, EDITOR_GAP);
         setEditor({ seed, placed: { top: placed.top, left: placed.left } });
         setBar(null);
       };
@@ -1025,9 +1107,17 @@ window.__ModuleLoader__.load({
         if (selection === null) return;
         setBar(null);
         window.getSelection()?.removeAllRanges();
+        const sessionId = selection.sessionId ?? access.currentSessionId();
+        const sidebar = sidebarService(ctx);
+        if (sidebar !== undefined) {
+          // Prefer the better-sidebar Side Chat: its thread inherits this
+          // conversation and lives in the right sidebar's own tab.
+          sidebar.openTab?.({ type: 'sidechat' }, { sessionId });
+          return;
+        }
         ctx.sidebarRight.openTab('aside', {
           params: {
-            sessionId: access.currentSessionId(),
+            sessionId,
             atSeq: selection.anchor?.seq,
             text: selection.text,
           },
@@ -1223,6 +1313,16 @@ window.__ModuleLoader__.load({
         });
         return () => { disposed = true; mounted = undefined; };
       }, 'dsh-aside.remote');
+    }
+
+    /** dsh-better-sidebar's public client service, when that plugin is here
+     *  (it is optional: Cordis refuses an undeclared service access, so ask). */
+    function sidebarService(ctx) {
+      try {
+        return ctx.get('betterSidebar');
+      } catch {
+        return undefined;
+      }
     }
 
     function AsideDockHost({ access, locale }) {

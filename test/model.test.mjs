@@ -96,4 +96,8 @@ test('the toolbar prefers above, flips below, and stays inside the viewport', ()
 
   const right = api.placeFloating({ top: 300, bottom: 320, left: 790, right: 800 }, { width: 320, height: 36 }, bounds);
   assert.equal(right.left, 800 - 320 - 8);
+
+  // The editor asks for a wider gap than the toolbar.
+  const wide = api.placeFloating({ top: 300, bottom: 320, left: 40, right: 200 }, { width: 320, height: 150 }, bounds, 18);
+  assert.equal(wide.top, 300 - 150 - 18);
 });
