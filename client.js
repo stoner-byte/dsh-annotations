@@ -673,7 +673,7 @@ window.__ModuleLoader__.load({
       const nodeKey = startHost.getAttribute('data-chat-anchor-key');
       if (nodeKey === null) return;
       const descriptor = chatDescriptor(chat, nodeKey);
-      if (descriptor === undefined || !descriptor.settled) return;
+      if (descriptor === undefined || !descriptor.settled || descriptor.source !== 'assistant') return;
       const offsets = offsetsOf(startHost, range);
       if (offsets === undefined) return;
       const rects = [...range.getClientRects()].filter(rect => rect.width > 0 || rect.height > 0);

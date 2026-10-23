@@ -27,6 +27,10 @@ const api = module.factory((name) => {
   throw new Error(`unexpected module ${name}`);
 }).__test;
 
+test('selection toolbar is agent-only', () => {
+  assert.match(source, /descriptor\.source !== 'assistant'/);
+});
+
 test('annotation payload survives the model-facing round trip', () => {
   const annotations = [
     { text: 'a < b & c', comment: 'why?' },
