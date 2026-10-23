@@ -2,7 +2,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 dsh=${DSH_BIN:-/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh}
-lab=$(mktemp -d /tmp/dsh-aside-smoke.XXXXXX)
+lab=$(mktemp -d /tmp/dsh-annotations-smoke.XXXXXX)
 export DSH_HOME=$lab
 pid=
 ok=false
@@ -10,7 +10,7 @@ cleanup() {
   if [[ -n $pid ]]; then kill "$pid" 2>/dev/null || :; wait "$pid" 2>/dev/null || :; fi
   if [[ $ok == true ]]; then
     resolved=$(realpath "$lab")
-    [[ $resolved == "$(realpath /tmp)/dsh-aside-smoke."* ]] || { echo "Unexpected cleanup target: $resolved" >&2; return 1; }
+    [[ $resolved == "$(realpath /tmp)/dsh-annotations-smoke."* ]] || { echo "Unexpected cleanup target: $resolved" >&2; return 1; }
     rm -rf -- "$lab"
   else
     echo "Isolated test logs: $lab" >&2
@@ -18,16 +18,16 @@ cleanup() {
 }
 trap cleanup EXIT
 
-"$dsh" --profile aside-smoke --from-default-profile web --dump-config >/dev/null
+"$dsh" --profile annotations-smoke --from-default-profile web --dump-config >/dev/null
 archive=$(npm pack --pack-destination "$lab" --silent)
-"$dsh" plugin --profile aside-smoke add "$lab/$archive" >/dev/null
-node -e "const p=require(process.argv[1]); if (!p.dsh.profile.bundles.includes('dsh-aside')) process.exit(1)" "$lab/profiles/aside-smoke/package.json"
-installed=$(realpath "$lab/profiles/aside-smoke/node_modules/dsh-aside")
-[[ $installed == "$(realpath "$lab")/profiles/aside-smoke/node_modules/dsh-aside" ]] || { echo 'Package was linked, not installed' >&2; exit 1; }
+"$dsh" plugin --profile annotations-smoke add "$lab/$archive" >/dev/null
+node -e "const p=require(process.argv[1]); if (!p.dsh.profile.bundles.includes('dsh-annotations')) process.exit(1)" "$lab/profiles/annotations-smoke/package.json"
+installed=$(realpath "$lab/profiles/annotations-smoke/node_modules/dsh-annotations")
+[[ $installed == "$(realpath "$lab")/profiles/annotations-smoke/node_modules/dsh-annotations" ]] || { echo 'Package was linked, not installed' >&2; exit 1; }
 
 for run in first restart; do
   log="$lab/$run.log"
-  "$dsh" --profile aside-smoke --no-open --host 127.0.0.1 --port 0 >"$log" 2>&1 &
+  "$dsh" --profile annotations-smoke --no-open --host 127.0.0.1 --port 0 >"$log" 2>&1 &
   pid=$!
   for ((i=0; i<100; i++)); do
     if [[ -s $log ]] && grep -q '^dsh web: http' "$log"; then break; fi

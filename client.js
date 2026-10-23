@@ -1,5 +1,5 @@
 window.__ModuleLoader__.load({
-  id: 'dsh-aside',
+  id: 'dsh-annotations',
   factory(require) {
     const React = require('react');
     const { createPortal } = require('react-dom');
@@ -14,184 +14,103 @@ window.__ModuleLoader__.load({
       useSyncExternalStore,
     } = React;
 
-    // The Client mounts its own wire declaration: same identity and strict codecs
-    // as lib/typert.js, rebuilt here because a raw client module cannot import the
-    // Host half. `zod` comes from the browser module table.
-    function wireInvocation(method, requestType, requestSchema, resultType, resultSchema, options = {}) {
-      return {
-        id: `dsh-aside#aside/${method}`,
-        service: 'aside',
-        namespace: 'aside',
-        method,
-        implementation: method,
-        invocation: { kind: 'direct' },
-        ...(options.stream ? { mode: 'stream' } : {}),
-        ...(options.cancellation ? { cancellation: { parameter: 'signal' } } : {}),
-        parameters: [{
-          name: 'request',
-          wire: 'request',
-          source: 'json',
-          codec: { mode: 'strict', typeSymbol: `dsh-aside/remote#${requestType}`, create: () => requestSchema },
-        }],
-        result: { mode: 'strict', typeSymbol: `dsh-aside/remote#${resultType}`, create: () => resultSchema },
-        sourceLocation: { file: 'lib/typert.js', line: 1, column: 1 },
-      };
-    }
-
-    function wireRemote(zod) {
-      const id = zod.string().min(1).max(512);
-      const wireError = zod.strictObject({ code: zod.string(), message: zod.string(), recoverable: zod.boolean() });
-      const envelope = shape => zod.union([
-        zod.strictObject({ ok: zod.literal(true), value: shape }),
-        zod.strictObject({ ok: zod.literal(false), error: wireError }),
-      ]);
-      const modelSelection = zod.strictObject({ provider: id, model: id, reasoningEffort: id.optional() });
-      const createRequest = zod.strictObject({
-        parentSessionId: id,
-        atSeq: zod.number().int().nonnegative(),
-        selectedText: zod.string().max(16384).optional(),
-        modelSelection: modelSelection.optional(),
-      });
-      const createValue = zod.strictObject({
-        chatId: id,
-        boundarySeq: zod.number().int().nonnegative(),
-        modelSelection,
-      });
-      const streamRequest = zod.strictObject({ chatId: id, requestId: id, text: zod.string().min(1).max(65536) });
-      const streamEvent = zod.union([
-        zod.strictObject({ type: zod.literal('started'), requestId: id }),
-        zod.strictObject({ type: zod.literal('content'), text: zod.string(), reasoning: zod.string() }),
-        zod.strictObject({ type: zod.literal('finished'), status: zod.enum(['complete', 'stopped']) }),
-        zod.strictObject({ type: zod.literal('error'), error: wireError }),
-      ]);
-      const chatRequest = zod.strictObject({ chatId: id });
-      return {
-        package: 'dsh-aside',
-        descriptors: [
-          wireInvocation('create', 'CreateRequest', createRequest, 'CreateResult', envelope(createValue), { cancellation: true }),
-          wireInvocation('stream', 'StreamRequest', streamRequest, 'StreamEvent', streamEvent, { stream: true, cancellation: true }),
-          wireInvocation('cancel', 'ChatRequest', chatRequest, 'CancelResult', envelope(zod.strictObject({ cancelled: zod.literal(true) }))),
-          wireInvocation('close', 'ChatRequest', chatRequest, 'CloseResult', envelope(zod.strictObject({ closed: zod.literal(true) }))),
-        ],
-      };
-    }
-
-    const SOURCE = 'aside-annotations';
-    const CHIP_LABEL = '__dsh_aside_annotations__';
+    const SOURCE = 'dsh-annotations';
+    const LEGACY_SOURCE = 'aside-annotations'; // Existing drafts keep this source.
+    const isAnnotationSource = source => source === SOURCE || source === LEGACY_SOURCE;
+    const CHIP_LABEL = '__dsh_annotations__';
     const PAYLOAD_VERSION = 1;
     const MAX_SELECTION_CHARS = 16384;
-    const HIGHLIGHT_ALL = 'dsh-aside-annotation';
-    const HIGHLIGHT_ACTIVE = 'dsh-aside-active';
+    const HIGHLIGHT_ALL = 'dsh-annotations';
+    const HIGHLIGHT_ACTIVE = 'dsh-annotations-active';
     const GAP = 18;
     const MARKER_SIZE = 18;
     const BAR_HEIGHT = 36;
-    const BAR_WIDTH = 320;
+    const BAR_WIDTH = 140;
 
     const STYLES = `
-.dsh-aside-bar{box-sizing:border-box;position:absolute;z-index:5;display:flex;align-items:center;gap:2px;height:${BAR_HEIGHT}px;padding:3px;border-radius:10px;
+.dsh-annotations-bar{box-sizing:border-box;position:absolute;z-index:5;display:flex;align-items:center;gap:2px;height:${BAR_HEIGHT}px;padding:3px;border-radius:10px;
   background:var(--dsh-surface-raised,color-mix(in srgb, Canvas 92%, CanvasText 8%));color:inherit;
   border:1px solid var(--dsh-border-subtle,rgba(127,127,127,.28));box-shadow:0 8px 24px rgba(0,0,0,.16);
   font:500 12.5px/1.2 var(--dsh-font-family,system-ui,sans-serif);white-space:nowrap}
-.dsh-aside-bar button{all:unset;display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 9px;border-radius:7px;cursor:pointer}
-.dsh-aside-bar button:hover,.dsh-aside-bar button:focus-visible{background:color-mix(in srgb, currentColor 10%, transparent)}
-.dsh-aside-bar svg{width:15px;height:15px;flex:none;opacity:.85}
-.dsh-aside-editor{position:relative;z-index:81;width:320px;display:flex;flex-direction:column;gap:8px;padding:10px;border-radius:12px;
+.dsh-annotations-bar button{all:unset;display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 9px;border-radius:7px;cursor:pointer}
+.dsh-annotations-bar button:hover,.dsh-annotations-bar button:focus-visible{background:color-mix(in srgb, currentColor 10%, transparent)}
+.dsh-annotations-bar svg{width:15px;height:15px;flex:none;opacity:.85}
+.dsh-annotations-editor{position:relative;z-index:81;width:320px;display:flex;flex-direction:column;gap:8px;padding:10px;border-radius:12px;
   background:var(--dsh-surface-raised,color-mix(in srgb, Canvas 95%, CanvasText 5%));border:1px solid var(--dsh-border-subtle,rgba(127,127,127,.28));
   box-shadow:0 12px 32px rgba(0,0,0,.2);font:400 13px/1.45 var(--dsh-font-family,system-ui,sans-serif)}
-.dsh-aside-editor-quote{max-height:96px;overflow:auto;padding:6px 8px;border-radius:8px;font-size:12px;opacity:.75;
+.dsh-annotations-editor-quote{max-height:96px;overflow:auto;padding:6px 8px;border-radius:8px;font-size:12px;opacity:.75;
   background:color-mix(in srgb, currentColor 6%, transparent);white-space:pre-wrap}
-.dsh-aside-editor textarea{resize:none;min-height:68px;padding:7px 8px;border-radius:8px;font:inherit;color:inherit;
+.dsh-annotations-editor textarea{resize:none;min-height:68px;padding:7px 8px;border-radius:8px;font:inherit;color:inherit;
   background:transparent;border:1px solid var(--dsh-border-subtle,rgba(127,127,127,.3));outline:none}
-.dsh-aside-editor textarea:focus{border-color:var(--dsh-accent,#3b82f6)}
-.dsh-aside-editor-actions{display:flex;align-items:center;gap:6px}
-.dsh-aside-editor-actions .dsh-aside-spacer{flex:1}
-.dsh-aside-button{all:unset;display:inline-flex;align-items:center;height:26px;padding:0 10px;border-radius:7px;cursor:pointer;
+.dsh-annotations-editor textarea:focus{border-color:var(--dsh-accent,#3b82f6)}
+.dsh-annotations-editor-actions{display:flex;align-items:center;gap:6px}
+.dsh-annotations-editor-actions .dsh-annotations-spacer{flex:1}
+.dsh-annotations-button{all:unset;display:inline-flex;align-items:center;height:26px;padding:0 10px;border-radius:7px;cursor:pointer;
   font:500 12.5px/1 var(--dsh-font-family,system-ui,sans-serif)}
-.dsh-aside-button:hover{background:color-mix(in srgb, currentColor 9%, transparent)}
-.dsh-aside-button-primary{background:var(--dsh-accent,#3b82f6);color:#fff}
-.dsh-aside-button-primary:hover{background:color-mix(in srgb, var(--dsh-accent,#3b82f6) 88%, #fff)}
-.dsh-aside-marker{position:absolute;z-index:5;display:grid;place-items:center;width:18px;height:18px;border-radius:99px;
+.dsh-annotations-button:hover{background:color-mix(in srgb, currentColor 9%, transparent)}
+.dsh-annotations-button-primary{background:var(--dsh-accent,#3b82f6);color:#fff}
+.dsh-annotations-button-primary:hover{background:color-mix(in srgb, var(--dsh-accent,#3b82f6) 88%, #fff)}
+.dsh-annotations-marker{position:absolute;z-index:5;display:grid;place-items:center;width:18px;height:18px;border-radius:99px;
   background:var(--dsh-accent,#3b82f6);color:#fff;font:600 10.5px/1 var(--dsh-font-family,system-ui,sans-serif);
   cursor:pointer;border:none;box-shadow:0 2px 6px rgba(0,0,0,.2);padding:0}
-.dsh-aside-marker:focus-visible{outline:2px solid color-mix(in srgb, var(--dsh-accent,#3b82f6) 45%, #fff);outline-offset:1px}
-.dsh-aside-dock{position:absolute;top:8px;left:14px;z-index:3;display:flex;flex-direction:column;gap:6px;max-width:calc(100% - 28px)}
-[data-composer-seat]:has(.dsh-aside-dock) [data-composer-input]{padding-top:39px}
-[data-composer-seat]:has(.dsh-aside-dock) [data-composer-placeholder]{transform:translateY(35px)}
-[data-composer-seat]:has(.dsh-aside-dock[data-aside-inline]) [data-composer-input]{padding-top:0}
-[data-composer-seat]:has(.dsh-aside-dock[data-aside-inline]) [data-composer-placeholder]{transform:none}
-.dsh-aside-capsule{display:inline-flex;align-items:center;gap:8px;height:30px;max-width:100%;width:fit-content;padding:0 31px 0 10px;
+.dsh-annotations-marker:focus-visible{outline:2px solid color-mix(in srgb, var(--dsh-accent,#3b82f6) 45%, #fff);outline-offset:1px}
+.dsh-annotations-dock{position:absolute;top:8px;left:14px;z-index:3;display:flex;flex-direction:column;gap:6px;max-width:calc(100% - 28px)}
+[data-composer-seat]:has(.dsh-annotations-dock) [data-composer-input]{padding-top:39px}
+[data-composer-seat]:has(.dsh-annotations-dock) [data-composer-placeholder]{transform:translateY(35px)}
+[data-composer-seat]:has(.dsh-annotations-dock[data-annotations-inline]) [data-composer-input]{padding-top:0}
+[data-composer-seat]:has(.dsh-annotations-dock[data-annotations-inline]) [data-composer-placeholder]{transform:none}
+.dsh-annotations-capsule{display:inline-flex;align-items:center;gap:8px;height:30px;max-width:100%;width:fit-content;padding:0 31px 0 10px;
   border-radius:9px;cursor:pointer;font:500 12.5px/1 var(--dsh-font-family,system-ui,sans-serif);color:var(--dsw-alias-label-primary,currentColor);
   background:color-mix(in srgb, var(--dsh-accent,#3b82f6) 12%, transparent);
   border:1px solid color-mix(in srgb, var(--dsh-accent,#3b82f6) 32%, transparent)}
-.dsh-aside-capsule:hover{background:color-mix(in srgb, var(--dsh-accent,#3b82f6) 18%, transparent)}
-.dsh-aside-capsule-count{display:grid;place-items:center;min-width:18px;height:18px;padding:0 4px;border-radius:99px;
+.dsh-annotations-capsule:hover{background:color-mix(in srgb, var(--dsh-accent,#3b82f6) 18%, transparent)}
+.dsh-annotations-capsule-count{display:grid;place-items:center;min-width:18px;height:18px;padding:0 4px;border-radius:99px;
   background:var(--dsh-accent,#3b82f6);color:#fff;font-size:10.5px;font-weight:600}
-.dsh-aside-close{position:absolute;top:4px;right:5px;display:grid;place-items:center;width:22px;height:22px;padding:0;
+.dsh-annotations-close{position:absolute;top:4px;right:5px;display:grid;place-items:center;width:22px;height:22px;padding:0;
   border:0;border-radius:7px;background:transparent;color:var(--dsw-alias-label-secondary,currentColor);
   cursor:pointer;opacity:0;pointer-events:none;transition:opacity .14s ease,background-color .14s ease,color .14s ease}
-.dsh-aside-dock:hover .dsh-aside-close,.dsh-aside-dock:focus-within .dsh-aside-close{opacity:1;pointer-events:auto}
-.dsh-aside-close:hover,.dsh-aside-close:focus-visible{background:var(--dsw-alias-bg-layer-2,rgba(127,127,127,.1));color:var(--dsw-alias-label-primary,currentColor)}
-.dsh-aside-close:focus-visible{outline:2px solid var(--dsw-alias-brand-primary,#3b82f6);outline-offset:1px}
-.dsh-aside-dock:has(.dsh-aside-list)::before{content:"";position:absolute;left:0;right:0;bottom:100%;height:8px}
-.dsh-aside-list{left:0}
-.dsh-aside-message{position:relative;display:flex;flex-direction:column;align-items:flex-end;gap:8px;min-width:0}
-.dsh-aside-message-body{align-self:stretch;min-width:0}
-.dsh-aside-message[data-aside-after-attachments] [data-message-attachments]{margin-bottom:38px}
-.dsh-aside-message[data-aside-after-attachments] .dsh-aside-card{position:absolute;right:0;top:var(--dsh-aside-sent-top,0px)}
-.dsh-aside-card{position:relative;z-index:4;align-self:flex-end;width:fit-content;max-width:100%;
+.dsh-annotations-dock:hover .dsh-annotations-close,.dsh-annotations-dock:focus-within .dsh-annotations-close{opacity:1;pointer-events:auto}
+.dsh-annotations-close:hover,.dsh-annotations-close:focus-visible{background:var(--dsw-alias-bg-layer-2,rgba(127,127,127,.1));color:var(--dsw-alias-label-primary,currentColor)}
+.dsh-annotations-close:focus-visible{outline:2px solid var(--dsw-alias-brand-primary,#3b82f6);outline-offset:1px}
+.dsh-annotations-dock:has(.dsh-annotations-list)::before{content:"";position:absolute;left:0;right:0;bottom:100%;height:8px}
+.dsh-annotations-list{left:0}
+.dsh-annotations-message{position:relative;display:flex;flex-direction:column;align-items:flex-end;gap:8px;min-width:0}
+.dsh-annotations-message-body{align-self:stretch;min-width:0}
+.dsh-annotations-message[data-annotations-after-attachments] [data-message-attachments]{margin-bottom:38px}
+.dsh-annotations-message[data-annotations-after-attachments] .dsh-annotations-card{position:absolute;right:0;top:var(--dsh-annotations-sent-top,0px)}
+.dsh-annotations-card{position:relative;z-index:4;align-self:flex-end;width:fit-content;max-width:100%;
   font:500 12.5px/1 var(--dsh-font-family,system-ui,sans-serif)}
-.dsh-aside-card-pill{display:inline-flex;align-items:center;gap:7px;height:30px;padding:0 11px;border:1px solid var(--dsw-alias-border-l1,rgba(127,127,127,.25));
+.dsh-annotations-card-pill{display:inline-flex;align-items:center;gap:7px;height:30px;padding:0 11px;border:1px solid var(--dsw-alias-border-l1,rgba(127,127,127,.25));
   border-radius:99px;background:var(--dsw-alias-bg-layer-1,Canvas);color:var(--dsw-alias-label-primary,currentColor);font:inherit;cursor:default;white-space:nowrap}
-.dsh-aside-card-pill svg{flex:none;color:var(--dsw-alias-label-secondary,currentColor)}
-.dsh-aside-card-pill:hover,.dsh-aside-card-pill:focus-visible{background:var(--dsw-alias-bg-layer-2,Canvas);border-color:var(--dsw-alias-border-l2,rgba(127,127,127,.35))}
-.dsh-aside-card-pill:focus-visible{outline:2px solid var(--dsw-alias-brand-primary,#3b82f6);outline-offset:2px}
-.dsh-aside-card:has(.dsh-aside-card-body)::before{content:"";position:absolute;left:0;right:0;bottom:100%;height:8px}
-.dsh-aside-card[data-aside-open-below]::before{top:100%;bottom:auto}
-.dsh-aside-preview{box-sizing:border-box;position:absolute;bottom:calc(100% + 8px);width:min(320px,calc(100vw - 32px));max-height:240px;
+.dsh-annotations-card-pill svg{flex:none;color:var(--dsw-alias-label-secondary,currentColor)}
+.dsh-annotations-card-pill:hover,.dsh-annotations-card-pill:focus-visible{background:var(--dsw-alias-bg-layer-2,Canvas);border-color:var(--dsw-alias-border-l2,rgba(127,127,127,.35))}
+.dsh-annotations-card-pill:focus-visible{outline:2px solid var(--dsw-alias-brand-primary,#3b82f6);outline-offset:2px}
+.dsh-annotations-card:has(.dsh-annotations-card-body)::before{content:"";position:absolute;left:0;right:0;bottom:100%;height:8px}
+.dsh-annotations-card[data-annotations-open-below]::before{top:100%;bottom:auto}
+.dsh-annotations-preview{box-sizing:border-box;position:absolute;bottom:calc(100% + 8px);width:min(320px,calc(100vw - 32px));max-height:240px;
   overflow:auto;display:flex;flex-direction:column;gap:6px;padding:8px;border-radius:10px;
   background:var(--dsh-surface-raised,Canvas);border:1px solid var(--dsh-border-subtle,rgba(127,127,127,.24));
   color:var(--dsw-alias-label-primary,currentColor);box-shadow:0 8px 24px rgba(0,0,0,.16);font:400 12px/1.45 var(--dsh-font-family,system-ui,sans-serif)}
-.dsh-aside-card-body{right:0}
-.dsh-aside-card[data-aside-open-below] .dsh-aside-card-body{top:calc(100% + 8px);bottom:auto}
-.dsh-aside-preview-row{display:flex;flex:none;gap:8px;align-items:flex-start;padding:6px;border-radius:8px}
-.dsh-aside-preview-row-editable{cursor:pointer}
-.dsh-aside-preview-row-editable:hover,.dsh-aside-preview-row-editable:focus-visible{background:color-mix(in srgb, currentColor 6%, transparent)}
-.dsh-aside-preview-row-editable:focus-visible{outline:2px solid var(--dsw-alias-brand-primary,#3b82f6);outline-offset:2px}
-.dsh-aside-preview-index{display:grid;place-items:center;min-width:18px;height:18px;border-radius:99px;flex:none;
+.dsh-annotations-card-body{right:0}
+.dsh-annotations-card[data-annotations-open-below] .dsh-annotations-card-body{top:calc(100% + 8px);bottom:auto}
+.dsh-annotations-preview-row{display:flex;flex:none;gap:8px;align-items:flex-start;padding:6px;border-radius:8px}
+.dsh-annotations-preview-row-editable{cursor:pointer}
+.dsh-annotations-preview-row-editable:hover,.dsh-annotations-preview-row-editable:focus-visible{background:color-mix(in srgb, currentColor 6%, transparent)}
+.dsh-annotations-preview-row-editable:focus-visible{outline:2px solid var(--dsw-alias-brand-primary,#3b82f6);outline-offset:2px}
+.dsh-annotations-preview-index{display:grid;place-items:center;min-width:18px;height:18px;border-radius:99px;flex:none;
   background:var(--dsh-accent,#3b82f6);color:#fff;font:600 10.5px/1 var(--dsh-font-family,system-ui,sans-serif)}
-.dsh-aside-preview-text{display:flex;flex-direction:column;gap:8px;min-width:0;flex:1}
-.dsh-aside-preview-quote,.dsh-aside-preview-comment{overflow:hidden;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;font-size:12px}
-.dsh-aside-preview-row-expanded .dsh-aside-preview-quote,.dsh-aside-preview-row-expanded .dsh-aside-preview-comment{display:block;overflow:visible;white-space:pre-wrap}
-.dsh-aside-preview-quote{opacity:.85}
-.dsh-aside-preview-comment{opacity:.62}
-.dsh-aside-preview-expand{align-self:flex-start;border:0;background:transparent;padding:0;color:var(--dsw-alias-brand-primary,#3b82f6);font:inherit;cursor:pointer}
-.dsh-aside-preview-expand:hover{text-decoration:underline}
-.dsh-aside-preview-expand:focus-visible{outline:2px solid currentColor;outline-offset:2px}
-.dsh-aside-preview-row .dsh-aside-preview-remove{all:unset;flex:none;font-size:11.5px;cursor:pointer;padding:2px 4px;border-radius:5px}
-.dsh-aside-button-danger,.dsh-aside-preview-row .dsh-aside-preview-remove{color:var(--dsw-alias-state-error-primary,#dc2626)}
-.dsh-aside-preview-row .dsh-aside-preview-remove:hover,.dsh-aside-preview-row .dsh-aside-preview-remove:focus-visible{background:color-mix(in srgb, currentColor 10%, transparent)}
-.dsh-aside-panel{display:flex;flex-direction:column;height:100%;min-height:0;font:400 13px/1.5 var(--dsh-font-family,system-ui,sans-serif)}
-.dsh-aside-panel-quote{flex:none;margin:10px 12px 0;padding:8px 10px;border-radius:9px;max-height:120px;overflow:auto;white-space:pre-wrap;
-  font-size:12px;opacity:.8;background:color-mix(in srgb, var(--dsh-accent,#3b82f6) 9%, transparent);
-  border:1px solid color-mix(in srgb, var(--dsh-accent,#3b82f6) 24%, transparent)}
-.dsh-aside-panel-log{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:10px;padding:12px}
-.dsh-aside-panel-empty{margin:auto;text-align:center;font-size:12.5px;opacity:.6;padding:24px}
-.dsh-aside-turn{display:flex;flex-direction:column;gap:4px}
-.dsh-aside-turn-role{font-size:11px;opacity:.55;letter-spacing:.02em}
-.dsh-aside-turn-question{white-space:pre-wrap;padding:8px 10px;border-radius:9px;font-size:12.5px;
-  background:color-mix(in srgb, currentColor 7%, transparent)}
-.dsh-aside-turn-answer{white-space:pre-wrap}
-.dsh-aside-panel-error{flex:none;margin:0 12px;padding:7px 9px;border-radius:8px;font-size:12px;color:#dc2626;
-  background:color-mix(in srgb, #dc2626 10%, transparent)}
-.dsh-aside-panel-composer{flex:none;display:flex;flex-direction:column;gap:6px;padding:10px 12px 12px;border-top:1px solid var(--dsh-border-subtle,rgba(127,127,127,.2))}
-.dsh-aside-panel-composer textarea{resize:none;min-height:62px;max-height:180px;padding:8px 9px;border-radius:9px;font:inherit;color:inherit;
-  background:transparent;border:1px solid var(--dsh-border-subtle,rgba(127,127,127,.3));outline:none}
-.dsh-aside-panel-composer textarea:focus{border-color:var(--dsh-accent,#3b82f6)}
-.dsh-aside-panel-actions{display:flex;align-items:center;gap:8px;font-size:11.5px;opacity:.75}
-.dsh-aside-panel-actions .dsh-aside-spacer{flex:1}
-.dsh-aside-model{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.dsh-aside-panel-actions .dsh-aside-button{opacity:1}
-[data-composer-chip="aside-annotations"]{display:inline-block!important;width:0!important;height:0!important;overflow:hidden!important;
+.dsh-annotations-preview-text{display:flex;flex-direction:column;gap:8px;min-width:0;flex:1}
+.dsh-annotations-preview-quote,.dsh-annotations-preview-comment{overflow:hidden;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;font-size:12px}
+.dsh-annotations-preview-row-expanded .dsh-annotations-preview-quote,.dsh-annotations-preview-row-expanded .dsh-annotations-preview-comment{display:block;overflow:visible;white-space:pre-wrap}
+.dsh-annotations-preview-quote{opacity:.85}
+.dsh-annotations-preview-comment{opacity:.62}
+.dsh-annotations-preview-expand{align-self:flex-start;border:0;background:transparent;padding:0;color:var(--dsw-alias-brand-primary,#3b82f6);font:inherit;cursor:pointer}
+.dsh-annotations-preview-expand:hover{text-decoration:underline}
+.dsh-annotations-preview-expand:focus-visible{outline:2px solid currentColor;outline-offset:2px}
+.dsh-annotations-preview-row .dsh-annotations-preview-remove{all:unset;flex:none;font-size:11.5px;cursor:pointer;padding:2px 4px;border-radius:5px}
+.dsh-annotations-button-danger,.dsh-annotations-preview-row .dsh-annotations-preview-remove{color:var(--dsw-alias-state-error-primary,#dc2626)}
+.dsh-annotations-preview-row .dsh-annotations-preview-remove:hover,.dsh-annotations-preview-row .dsh-annotations-preview-remove:focus-visible{background:color-mix(in srgb, currentColor 10%, transparent)}
+:is([data-composer-chip="dsh-annotations"],[data-composer-chip="aside-annotations"]){display:inline-block!important;width:0!important;height:0!important;overflow:hidden!important;
   opacity:0!important;pointer-events:none!important;vertical-align:baseline!important}
 ::highlight(${HIGHLIGHT_ALL}){background-color:color-mix(in srgb, #3b82f6 24%, transparent)}
 ::highlight(${HIGHLIGHT_ACTIVE}){background-color:color-mix(in srgb, #3b82f6 44%, transparent)}
@@ -199,18 +118,14 @@ window.__ModuleLoader__.load({
 
     const MESSAGES = {
       zh: {
-        add: '添加到对话', ask: '在侧边聊天中提问', annotations: '条注释', quote: '所选文本',
+        add: '添加到对话', annotations: '条注释',
         commentPlaceholder: '添加可选评论…', commentLabel: '用户评论', cancel: '取消', save: '保存', remove: '删除', expand: '展开', collapse: '收起',
-        clearAll: '清除全部注释', clearFailed: '无法清除注释。', aside: '旁注讨论', empty: '这段对话是临时的，只用于讨论所选内容。',
-        inputPlaceholder: '就所选内容提问…', send: '发送', stop: '停止', thinking: '思考中…',
-        inherited: '使用主会话模型', close: '关闭', thinkingLabel: '思考',
+        clearAll: '清除全部注释', clearFailed: '无法清除注释。',
       },
       en: {
-        add: 'Add to chat', ask: 'Ask in side chat', annotations: 'annotations', quote: 'Selected text',
+        add: 'Add to chat', annotations: 'annotations',
         commentPlaceholder: 'Add an optional comment…', commentLabel: 'Comment', cancel: 'Cancel', save: 'Save', remove: 'Remove', expand: 'Expand', collapse: 'Collapse',
-        clearAll: 'Delete all annotations', clearFailed: 'Could not delete the annotations.', aside: 'Aside', empty: 'This discussion is temporary and only sees the selected passage.',
-        inputPlaceholder: 'Ask about this passage…', send: 'Send', stop: 'Stop', thinking: 'Thinking…',
-        inherited: 'Using the parent model', close: 'Close', thinkingLabel: 'Reasoning',
+        clearAll: 'Delete all annotations', clearFailed: 'Could not delete the annotations.',
       },
     };
 
@@ -242,24 +157,24 @@ window.__ModuleLoader__.load({
       return value.replaceAll('&lt;', '<').replaceAll('&gt;', '>').replaceAll('&amp;', '&');
     }
 
-    function serializeAnnotations(annotations) {
+    function serializeAnnotations(annotations, tag = 'annotation_context') {
       return [
-        '<aside_context>',
+        `<${tag}>`,
         ...annotations.flatMap((annotation, index) => [
           `<annotation index="${String(index + 1)}">`,
           '<selected_text>', escapeXmlText(annotation.text), '</selected_text>',
           ...(annotation.comment === undefined ? [] : ['<user_comment>', escapeXmlText(annotation.comment), '</user_comment>']),
           '</annotation>',
         ]),
-        '</aside_context>',
+        `</${tag}>`,
       ].join('\n');
     }
 
-    const ASIDE_BLOCK = /<aside_context>\r?\n[\s\S]*?\r?\n<\/aside_context>/gu;
+    const CONTEXT_BLOCK = /<(annotation_context|aside_context)>\r?\n[\s\S]*?\r?\n<\/\1>/gu;
     const ANNOTATION_BLOCK = /<annotation index="\d+">\n<selected_text>\n([\s\S]*?)\n<\/selected_text>(?:\n<user_comment>\n([\s\S]*?)\n<\/user_comment>)?\n<\/annotation>/gu;
 
-    function parseAsideContext(text) {
-      const candidates = [...text.matchAll(ASIDE_BLOCK)];
+    function parseAnnotationContext(text) {
+      const candidates = [...text.matchAll(CONTEXT_BLOCK)];
       if (candidates.length !== 1) return undefined;
       const candidate = candidates[0];
       const xml = normalizeText(candidate[0]);
@@ -267,7 +182,7 @@ window.__ModuleLoader__.load({
         text: unescapeXmlText(match[1]),
         ...(match[2] === undefined ? {} : { comment: unescapeXmlText(match[2]) }),
       }));
-      if (annotations.length === 0 || serializeAnnotations(annotations) !== xml) return undefined;
+      if (annotations.length === 0 || serializeAnnotations(annotations, candidate[1]) !== xml) return undefined;
       const start = candidate.index;
       const end = start + candidate[0].length;
       return { annotations, start, end };
@@ -323,7 +238,7 @@ window.__ModuleLoader__.load({
 
     function readAnnotations(snapshot) {
       if (snapshot === undefined) return [];
-      const occurrences = snapshot.occurrences.filter(occurrence => occurrence.source === SOURCE);
+      const occurrences = snapshot.occurrences.filter(occurrence => isAnnotationSource(occurrence.source));
       const result = [];
       for (const occurrence of occurrences) {
         const decoded = decodeChip(occurrence.ref);
@@ -338,7 +253,7 @@ window.__ModuleLoader__.load({
     function writeAnnotations(input, annotations) {
       if (input === undefined) return false;
       const before = input.state.getSnapshot();
-      const existing = before.occurrences.filter(occurrence => occurrence.source === SOURCE);
+      const existing = before.occurrences.filter(occurrence => isAnnotationSource(occurrence.source));
       if (existing.length > 1) return false;
       const previous = existing[0];
       const span = previous === undefined
@@ -523,7 +438,7 @@ window.__ModuleLoader__.load({
       for (let cell = walker.nextNode(); cell !== null; cell = walker.nextNode()) {
         const parent = cell.parentElement;
         if (parent === null) continue;
-        if (parent.closest('[data-aside-skip],button,[role="button"],[aria-hidden="true"]') !== null) continue;
+        if (parent.closest('[data-annotations-skip],button,[role="button"],[aria-hidden="true"]') !== null) continue;
         nodes.push(cell);
       }
       return nodes;
@@ -722,11 +637,6 @@ window.__ModuleLoader__.load({
         h('path', { d: 'M3 3.5h10M3 8h6.5M3 12.5h8' }));
     }
 
-    function IconAsk() {
-      return h('svg', { viewBox: '0 0 16 16', fill: 'none', stroke: 'currentColor', strokeWidth: 1.4, 'aria-hidden': true },
-        h('path', { d: 'M13.5 8A5.5 5.5 0 1 1 8 2.5H13.5V8Z' }), h('path', { d: 'M8.2 6.1h1.6' }));
-    }
-
     function AnnotationEditor({ locale, draft, comment, onCommentChange, onSave, onCancel, onRemove }) {
       const messages = MESSAGES[locale];
       const areaRef = useRef(null);
@@ -736,7 +646,7 @@ window.__ModuleLoader__.load({
         areaRef.current?.setSelectionRange(areaRef.current.value.length, areaRef.current.value.length);
       }, []);
       return h('div', {
-        className: 'dsh-aside-editor',
+        className: 'dsh-annotations-editor',
         role: 'dialog',
         'aria-label': messages.add,
         onKeyDown: (event) => {
@@ -744,7 +654,7 @@ window.__ModuleLoader__.load({
           else if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); save(); }
         },
       },
-        h('div', { className: 'dsh-aside-editor-quote' }, draft.slice(0, 300)),
+        h('div', { className: 'dsh-annotations-editor-quote' }, draft.slice(0, 300)),
         h('textarea', {
           ref: areaRef,
           value: comment,
@@ -752,25 +662,25 @@ window.__ModuleLoader__.load({
           'aria-label': messages.commentPlaceholder,
           onChange: event => onCommentChange(event.target.value),
         }),
-        h('div', { className: 'dsh-aside-editor-actions' },
-          onRemove === undefined ? null : h('button', { type: 'button', className: 'dsh-aside-button dsh-aside-button-danger', onClick: onRemove }, messages.remove),
-          h('span', { className: 'dsh-aside-spacer' }),
-          h('button', { type: 'button', className: 'dsh-aside-button', onClick: onCancel }, messages.cancel),
-          h('button', { type: 'button', className: 'dsh-aside-button dsh-aside-button-primary', onClick: save }, messages.save),
+        h('div', { className: 'dsh-annotations-editor-actions' },
+          onRemove === undefined ? null : h('button', { type: 'button', className: 'dsh-annotations-button dsh-annotations-button-danger', onClick: onRemove }, messages.remove),
+          h('span', { className: 'dsh-annotations-spacer' }),
+          h('button', { type: 'button', className: 'dsh-annotations-button', onClick: onCancel }, messages.cancel),
+          h('button', { type: 'button', className: 'dsh-annotations-button dsh-annotations-button-primary', onClick: save }, messages.save),
         ),
       );
     }
 
-    function AsidePreview({ annotations, locale, className, onEdit, onRemove }) {
+    function AnnotationPreview({ annotations, locale, className, onEdit, onRemove }) {
       const messages = MESSAGES[locale];
       const previewRef = useRef(null);
       const [expandedIndex, setExpandedIndex] = useState(null);
       const [truncated, setTruncated] = useState([]);
       useLayoutEffect(() => {
         const measure = () => {
-          const rows = previewRef.current?.querySelectorAll('.dsh-aside-preview-row') ?? [];
+          const rows = previewRef.current?.querySelectorAll('.dsh-annotations-preview-row') ?? [];
           const next = [...rows].map((row, index) => index === expandedIndex
-            || [...row.querySelectorAll('.dsh-aside-preview-quote,.dsh-aside-preview-comment')]
+            || [...row.querySelectorAll('.dsh-annotations-preview-quote,.dsh-annotations-preview-comment')]
               .some(text => text.scrollHeight > text.clientHeight + 1));
           setTruncated(previous => previous.length === next.length && previous.every((value, index) => value === next[index]) ? previous : next);
         };
@@ -778,9 +688,9 @@ window.__ModuleLoader__.load({
         window.addEventListener('resize', measure);
         return () => window.removeEventListener('resize', measure);
       }, [annotations, expandedIndex]);
-      return h('div', { ref: previewRef, className: `dsh-aside-preview ${className}`, role: 'list' }, annotations.map((annotation, index) => h('div', {
-        key: `aside-preview-${String(index)}`,
-        className: `dsh-aside-preview-row${onEdit === undefined ? '' : ' dsh-aside-preview-row-editable'}${expandedIndex === index ? ' dsh-aside-preview-row-expanded' : ''}`,
+      return h('div', { ref: previewRef, className: `dsh-annotations-preview ${className}`, role: 'list' }, annotations.map((annotation, index) => h('div', {
+        key: `annotations-preview-${String(index)}`,
+        className: `dsh-annotations-preview-row${onEdit === undefined ? '' : ' dsh-annotations-preview-row-editable'}${expandedIndex === index ? ' dsh-annotations-preview-row-expanded' : ''}`,
         role: 'listitem',
         tabIndex: onEdit === undefined ? undefined : 0,
         onClick: onEdit === undefined ? undefined : () => onEdit(index),
@@ -790,17 +700,17 @@ window.__ModuleLoader__.load({
           onEdit(index);
         },
       },
-        h('span', { className: 'dsh-aside-preview-index' }, String(index + 1)),
-        h('span', { className: 'dsh-aside-preview-text' },
-          h('span', { className: 'dsh-aside-preview-quote', title: annotation.text }, annotation.text),
-          annotation.comment === undefined ? null : h('span', { className: 'dsh-aside-preview-comment', title: annotation.comment }, annotation.comment),
+        h('span', { className: 'dsh-annotations-preview-index' }, String(index + 1)),
+        h('span', { className: 'dsh-annotations-preview-text' },
+          h('span', { className: 'dsh-annotations-preview-quote', title: annotation.text }, annotation.text),
+          annotation.comment === undefined ? null : h('span', { className: 'dsh-annotations-preview-comment', title: annotation.comment }, annotation.comment),
           truncated[index] ? h('button', {
-            type: 'button', className: 'dsh-aside-preview-expand', 'aria-expanded': expandedIndex === index,
+            type: 'button', className: 'dsh-annotations-preview-expand', 'aria-expanded': expandedIndex === index,
             onClick: event => { event.stopPropagation(); setExpandedIndex(expandedIndex === index ? null : index); },
           }, expandedIndex === index ? messages.collapse : messages.expand) : null,
         ),
         onRemove === undefined ? null : h('button', {
-          type: 'button', className: 'dsh-aside-preview-remove', onClick: event => { event.stopPropagation(); onRemove(index); },
+          type: 'button', className: 'dsh-annotations-preview-remove', onClick: event => { event.stopPropagation(); onRemove(index); },
         }, messages.remove),
       )));
     }
@@ -829,7 +739,7 @@ window.__ModuleLoader__.load({
       const snapshot = input.state.getSnapshot();
       if (snapshot.phase !== 'plain') return false;
       const references = [...snapshot.occurrences].sort((a, b) => a.offset - b.offset);
-      const own = references.filter(occurrence => occurrence.source === SOURCE);
+      const own = references.filter(occurrence => isAnnotationSource(occurrence.source));
       if (own.length !== 1) return false;
       let editLength = snapshot.draft.length;
       let previousEnd = 0;
@@ -846,7 +756,7 @@ window.__ModuleLoader__.load({
         || selection.start < 0 || selection.end > editLength || selection.start > selection.end) return false;
       if (selection.start === 0 && selection.end === editLength && selection.end > 0) {
         return input.insertReference({
-          source: SOURCE, ref: occurrence.ref, label: occurrence.label,
+          source: occurrence.source, ref: occurrence.ref, label: occurrence.label,
           clipboardText: occurrence.clipboardText,
           ...(occurrence.appearance === undefined ? {} : { appearance: occurrence.appearance }),
         }, { start: 0, end: editLength, draftRev: snapshot.draftRev }) === true;
@@ -873,7 +783,7 @@ window.__ModuleLoader__.load({
       const backward = type === 'Backspace' || type.endsWith('Backward');
       const forward = type === 'Delete' || type.endsWith('Forward');
       if (range.collapsed && !backward && !forward) return false;
-      return [...editor.querySelectorAll('[data-composer-chip="aside-annotations"]')].some(chip => {
+      return [...editor.querySelectorAll('[data-composer-chip="dsh-annotations"],[data-composer-chip="aside-annotations"]')].some(chip => {
         // ponytail: mixed selections stay untouched; partial text edits need the editor's transaction hook.
         if (!range.collapsed) return range.intersectsNode(chip);
         if (chip.contains(range.startContainer)) return true;
@@ -892,7 +802,7 @@ window.__ModuleLoader__.load({
       });
     }
 
-    function AsideDock({ access, locale, onEdit }) {
+    function AnnotationDock({ access, locale, onEdit }) {
       const messages = MESSAGES[locale];
       const annotations = useAnnotations(access);
       const [expanded, setExpanded] = useState(false);
@@ -901,7 +811,7 @@ window.__ModuleLoader__.load({
         if (annotations.length === 0 && expanded) setExpanded(false);
       }, [annotations.length, expanded]);
       useLayoutEffect(() => {
-        const list = dockRef.current?.querySelector('.dsh-aside-list');
+        const list = dockRef.current?.querySelector('.dsh-annotations-list');
         if (list) list.style.left = `${String(Math.min(0, window.innerWidth - 16 - dockRef.current.getBoundingClientRect().left - list.offsetWidth))}px`;
       }, [expanded, annotations.length]);
       useEffect(() => {
@@ -917,7 +827,7 @@ window.__ModuleLoader__.load({
             rail === null ? 10 : Number.parseFloat(getComputedStyle(rail).columnGap) || 10);
           dock.style.left = `${String(position.left)}px`;
           dock.style.top = `${String(position.top)}px`;
-          dock.toggleAttribute('data-aside-inline', position.inline);
+          dock.toggleAttribute('data-annotations-inline', position.inline);
         };
         const mutation = new MutationObserver(place);
         mutation.observe(attachments, { childList: true, subtree: true });
@@ -986,7 +896,7 @@ window.__ModuleLoader__.load({
         if (input !== undefined && !writeAnnotations(input, [])) input.notify?.('error', messages.clearFailed);
       };
       return h('div', {
-        ref: dockRef, className: 'dsh-aside-dock', 'data-aside-skip': '',
+        ref: dockRef, className: 'dsh-annotations-dock', 'data-annotations-skip': '',
         onMouseEnter: () => setExpanded(true),
         onMouseLeave: () => setExpanded(false),
         onFocus: () => setExpanded(true),
@@ -994,37 +904,37 @@ window.__ModuleLoader__.load({
       },
         h('button', {
           type: 'button',
-          className: 'dsh-aside-capsule',
+          className: 'dsh-annotations-capsule',
           'aria-expanded': expanded,
         },
-          h('span', { className: 'dsh-aside-capsule-count' }, String(annotations.length)),
+          h('span', { className: 'dsh-annotations-capsule-count' }, String(annotations.length)),
           h('span', null, `${String(annotations.length)} ${messages.annotations}`),
         ),
         h('button', {
-          type: 'button', className: 'dsh-aside-close',
+          type: 'button', className: 'dsh-annotations-close',
           'aria-label': messages.clearAll, title: messages.clearAll, onClick: clear,
         }, h('svg', { width: 15, height: 15, viewBox: '0 0 20 20', fill: 'none', stroke: 'currentColor',
           strokeWidth: 1.8, strokeLinecap: 'round', 'aria-hidden': true },
           h('path', { d: 'M5.5 5.5l9 9m0-9-9 9' }))),
-        expanded ? h(AsidePreview, {
-          annotations, locale, className: 'dsh-aside-list',
+        expanded ? h(AnnotationPreview, {
+          annotations, locale, className: 'dsh-annotations-list',
           onEdit: (index) => { setExpanded(false); onEdit(index); },
           onRemove: remove,
         }) : null,
       );
     }
 
-    function AsideMessages({ annotations, locale }) {
+    function AnnotationMessages({ annotations, locale }) {
       const [expanded, setExpanded] = useState(false);
       const cardRef = useRef(null);
       const messages = MESSAGES[locale];
       useLayoutEffect(() => {
-        const message = cardRef.current?.closest('.dsh-aside-message');
+        const message = cardRef.current?.closest('.dsh-annotations-message');
         const attachments = message?.querySelector('[data-message-attachments]');
         if (!message || !attachments) return;
         // ponytail: native UserContent has no after-attachments slot; use its measured rail until one exists.
-        message.setAttribute('data-aside-after-attachments', '');
-        const place = () => message.style.setProperty('--dsh-aside-sent-top',
+        message.setAttribute('data-annotations-after-attachments', '');
+        const place = () => message.style.setProperty('--dsh-annotations-sent-top',
           `${String(placeSentPill(message.getBoundingClientRect(), attachments.getBoundingClientRect()))}px`);
         const resize = new ResizeObserver(place);
         resize.observe(message);
@@ -1032,16 +942,16 @@ window.__ModuleLoader__.load({
         place();
         return () => {
           resize.disconnect();
-          message.removeAttribute('data-aside-after-attachments');
-          message.style.removeProperty('--dsh-aside-sent-top');
+          message.removeAttribute('data-annotations-after-attachments');
+          message.style.removeProperty('--dsh-annotations-sent-top');
         };
       }, [annotations.length]);
       useLayoutEffect(() => {
         if (!expanded) return;
         const card = cardRef.current;
-        const preview = card?.querySelector('.dsh-aside-card-body');
+        const preview = card?.querySelector('.dsh-annotations-card-body');
         if (!card || !preview) return;
-        const place = () => card.toggleAttribute('data-aside-open-below',
+        const place = () => card.toggleAttribute('data-annotations-open-below',
           sentPopoverBelow(card.getBoundingClientRect(), preview.getBoundingClientRect().height, window.innerHeight));
         const resize = new ResizeObserver(place);
         resize.observe(preview);
@@ -1050,20 +960,20 @@ window.__ModuleLoader__.load({
       }, [expanded]);
       if (annotations.length === 0) return null;
       return h('div', {
-        ref: cardRef, className: 'dsh-aside-card', 'data-aside-skip': '',
+        ref: cardRef, className: 'dsh-annotations-card', 'data-annotations-skip': '',
         onMouseEnter: () => setExpanded(true),
         onMouseLeave: () => setExpanded(false),
         onFocus: () => setExpanded(true),
         onBlur: event => { if (!event.currentTarget.contains(event.relatedTarget)) setExpanded(false); },
       },
-        h('button', { type: 'button', className: 'dsh-aside-card-pill', 'aria-expanded': expanded },
+        h('button', { type: 'button', className: 'dsh-annotations-card-pill', 'aria-expanded': expanded },
           h('svg', { width: 16, height: 16, viewBox: '0 0 20 20', fill: 'none', stroke: 'currentColor',
             strokeWidth: 1.6, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true },
             h('path', { d: 'M5 3.75h10a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H8l-3.5 2v-2A2 2 0 0 1 3 13.75v-8a2 2 0 0 1 2-2Z' }),
             h('path', { d: 'M6.5 8h7m-7 3h4.5' })),
           `${String(annotations.length)} ${messages.annotations}`,
         ),
-        expanded ? h(AsidePreview, { annotations, locale, className: 'dsh-aside-card-body' }) : null,
+        expanded ? h(AnnotationPreview, { annotations, locale, className: 'dsh-annotations-card-body' }) : null,
       );
     }
 
@@ -1096,8 +1006,8 @@ window.__ModuleLoader__.load({
       });
     }
 
-    function extractAsideContent(content) {
-      const matches = contentText(content).map(run => ({ run, parsed: parseAsideContext(run.text) }))
+    function extractAnnotationContent(content) {
+      const matches = contentText(content).map(run => ({ run, parsed: parseAnnotationContext(run.text) }))
         .filter(({ parsed }) => parsed !== undefined);
       if (matches.length !== 1) return undefined;
       const { run, parsed } = matches[0];
@@ -1108,170 +1018,21 @@ window.__ModuleLoader__.load({
     }
 
     function annotatedRenderer(Original, locale) {
-      return function AsideUserMessage(props) {
-        const parsed = extractAsideContent(props.node.data.content);
+      return function AnnotationUserMessage(props) {
+        const parsed = extractAnnotationContent(props.node.data.content);
         if (parsed === undefined) return h(Original, props);
         const node = {
           ...props.node,
           data: { ...props.node.data, content: parsed.content },
         };
-        return h('div', { className: 'dsh-aside-message' },
-          h(AsideMessages, { annotations: parsed.annotations, locale }),
-          h('div', { className: 'dsh-aside-message-body' }, h(Original, { ...props, node })),
+        return h('div', { className: 'dsh-annotations-message' },
+          h(AnnotationMessages, { annotations: parsed.annotations, locale }),
+          h('div', { className: 'dsh-annotations-message-body' }, h(Original, { ...props, node })),
         );
       };
     }
 
-    function AsidePanel({ ctx, access, locale, params }) {
-      const messages = MESSAGES[locale];
-      const [messagesState, setMessagesState] = useState(() => ({
-        chatId: undefined, model: undefined, entries: [], status: 'idle', error: undefined,
-      }));
-      const [draft, setDraft] = useState('');
-      const [stopping, setStopping] = useState(false);
-      const stateRef = useRef(messagesState);
-      stateRef.current = messagesState;
-      const listRef = useRef(null);
-
-      const patch = useCallback((next) => {
-        setMessagesState((current) => {
-          const merged = { ...current, ...next };
-          stateRef.current = merged;
-          return merged;
-        });
-      }, []);
-
-      useEffect(() => {
-        if (listRef.current !== null) listRef.current.scrollTop = listRef.current.scrollHeight;
-      }, [messagesState.entries, messagesState.status]);
-
-      useEffect(() => () => {
-        const chatId = stateRef.current.chatId;
-        if (chatId !== undefined) void services.close(chatId);
-      }, []);
-
-      const stream = async (requestId, chatId, text) => {
-        try {
-          for await (const event of await services.stream({ chatId, requestId, text })) {
-            if (event.type === 'started') continue;
-            if (event.type === 'content') {
-              setMessagesState((current) => {
-                const entries = [...current.entries];
-                const last = entries[entries.length - 1];
-                if (last !== undefined && last.pending === true) entries[entries.length - 1] = { ...last, text: event.text, reasoning: event.reasoning };
-                const merged = { ...current, entries };
-                stateRef.current = merged;
-                return merged;
-              });
-              continue;
-            }
-            if (event.type === 'finished') {
-              setMessagesState((current) => {
-                const entries = [...current.entries];
-                const last = entries[entries.length - 1];
-                if (last !== undefined && last.pending === true) entries[entries.length - 1] = { ...last, pending: false };
-                const merged = { ...current, entries, status: 'idle' };
-                stateRef.current = merged;
-                return merged;
-              });
-              continue;
-            }
-            if (event.type === 'error') {
-              patch({ status: 'idle', error: event.error.message });
-            }
-          }
-        } catch (cause) {
-          patch({ status: 'idle', error: cause instanceof Error ? cause.message : String(cause) });
-        }
-      };
-
-      const ensureChat = async () => {
-        if (stateRef.current.chatId !== undefined) return stateRef.current.chatId;
-        if (params.sessionId === undefined || params.atSeq === undefined) {
-          patch({ error: 'The selection is not attached to a completed turn.' });
-          return;
-        }
-        const created = await services.create({
-          parentSessionId: params.sessionId,
-          atSeq: params.atSeq,
-          ...(params.text === undefined ? {} : { selectedText: params.text }),
-        });
-        if (!created.ok) {
-          patch({ error: created.error.message });
-          return;
-        }
-        patch({ chatId: created.value.chatId, model: created.value.modelSelection });
-        return created.value.chatId;
-      };
-
-      const send = async () => {
-        const text = draft.trim();
-        if (text.length === 0 || stateRef.current.status === 'streaming') return;
-        const chatId = await ensureChat();
-        if (chatId === undefined) return;
-        const requestId = crypto.randomUUID();
-        setDraft('');
-        patch({
-          status: 'streaming',
-          error: undefined,
-          entries: [...stateRef.current.entries, { role: 'user', text }, { role: 'assistant', text: '', pending: true }],
-        });
-        void stream(requestId, chatId, text);
-      };
-
-      const stop = async () => {
-        const chatId = stateRef.current.chatId;
-        if (chatId === undefined) return;
-        setStopping(true);
-        await services.cancel(chatId);
-        setStopping(false);
-      };
-
-      const entries = messagesState.entries;
-      return h('div', { className: 'dsh-aside-panel' },
-        params.text === undefined ? null : h('div', { className: 'dsh-aside-panel-quote' }, `${messages.quote}：${params.text}`),
-        h('div', { className: 'dsh-aside-panel-log', ref: listRef },
-          entries.length === 0
-            ? h('div', { className: 'dsh-aside-panel-empty' }, messages.empty)
-            : entries.map((entry, index) => h('div', {
-              key: `aside-turn-${String(index)}`,
-              className: 'dsh-aside-turn',
-            },
-              entry.role === 'user'
-                ? h(React.Fragment, null,
-                  h('span', { className: 'dsh-aside-turn-role' }, 'You'),
-                  h('div', { className: 'dsh-aside-turn-question' }, entry.text))
-                : h(React.Fragment, null,
-                  h('span', { className: 'dsh-aside-turn-role' }, entry.pending === true ? messages.thinking : 'Aside'),
-                  h('div', { className: 'dsh-aside-turn-answer' }, entry.text.length === 0 && entry.pending === true ? '…' : entry.text)),
-            )),
-        ),
-        messagesState.error === undefined ? null : h('div', { className: 'dsh-aside-panel-error', role: 'alert' }, messagesState.error),
-        h('div', { className: 'dsh-aside-panel-composer' },
-          h('textarea', {
-            value: draft,
-            placeholder: messages.inputPlaceholder,
-            'aria-label': messages.inputPlaceholder,
-            onChange: event => setDraft(event.target.value),
-            onKeyDown: (event) => {
-              if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
-                event.preventDefault();
-                void send();
-              }
-            },
-          }),
-          h('div', { className: 'dsh-aside-panel-actions' },
-            h('span', { className: 'dsh-aside-model' }, messagesState.model === undefined ? messages.inherited : messagesState.model.model),
-            h('span', { className: 'dsh-aside-spacer' }),
-            messagesState.status === 'streaming'
-              ? h('button', { type: 'button', className: 'dsh-aside-button', onClick: () => void stop(), disabled: stopping }, messages.stop)
-              : h('button', { type: 'button', className: 'dsh-aside-button dsh-aside-button-primary', onClick: () => void send() }, messages.send),
-          ),
-        ),
-      );
-    }
-
-    function AsideOverlay({ ctx, access, locale }) {
+    function AnnotationOverlay({ access, locale }) {
       const messages = MESSAGES[locale];
       const annotations = useAnnotations(access);
       const [bar, setBar] = useState(null);
@@ -1326,8 +1087,8 @@ window.__ModuleLoader__.load({
             if (marker === undefined) {
               marker = document.createElement('button');
               marker.type = 'button';
-              marker.className = 'dsh-aside-marker';
-              marker.dataset.asideSkip = '';
+              marker.className = 'dsh-annotations-marker';
+              marker.dataset.annotationsSkip = '';
               marker.textContent = String(index + 1);
               marker.title = String(index + 1);
               marker.addEventListener('click', () => access.openAnnotation?.(index));
@@ -1373,7 +1134,7 @@ window.__ModuleLoader__.load({
       useEffect(() => {
         const onPointerDown = (event) => {
           const target = event.target;
-          if (target instanceof Element && (target.closest('.dsh-aside-bar, .dsh-aside-editor, .dsh-aside-marker, .dsh-aside-dock') !== null)) return;
+          if (target instanceof Element && (target.closest('.dsh-annotations-bar, .dsh-annotations-editor, .dsh-annotations-marker, .dsh-annotations-dock') !== null)) return;
           // ponytail: touches inside the transcript keep the editor; distinguish taps if tap-to-dismiss is needed.
           if (editorRefState.current !== null && target instanceof Element
             && (target.matches('[data-conversation-scroll]')
@@ -1557,28 +1318,6 @@ window.__ModuleLoader__.load({
         focusComposer();
       };
 
-      const ask = () => {
-        const selection = bar;
-        if (selection === null) return;
-        setBar(null);
-        window.getSelection()?.removeAllRanges();
-        const sessionId = selection.sessionId ?? access.currentSessionId();
-        const sidebar = sidebarService(ctx);
-        if (sidebar !== undefined) {
-          // Prefer the better-sidebar Side Chat: its thread inherits this
-          // conversation and lives in the right sidebar's own tab.
-          sidebar.openTab?.({ type: 'sidechat' }, { sessionId });
-          return;
-        }
-        ctx.sidebarRight.openTab('aside', {
-          params: {
-            sessionId,
-            atSeq: selection.anchor?.seq,
-            text: selection.text,
-          },
-        });
-      };
-
       const floatingEditor = editor === null ? null : h('div', {
         ref: editorBoxRef,
         style: { position: editorScroll === undefined ? 'fixed' : 'absolute',
@@ -1597,15 +1336,14 @@ window.__ModuleLoader__.load({
       return h(React.Fragment, null,
         bar === null ? null : createPortal(h('div', {
           ref: barBoxRef,
-          className: 'dsh-aside-bar',
+          className: 'dsh-annotations-bar',
           role: 'toolbar',
-          'aria-label': messages.aside,
+          'aria-label': messages.add,
           style: { top: `${String(bar.placed.top)}px`, left: `${String(bar.placed.left)}px` },
           onMouseDown: event => event.preventDefault(),
         },
           h('button', { type: 'button', onClick: () => openEditor({ text: bar.text, anchor: bar.anchor, sessionId: bar.sessionId, range: bar.range, rect: bar.rect, scroll: bar.scroll }) },
             h(IconQuote), messages.add),
-          h('button', { type: 'button', onClick: ask }, h(IconAsk), messages.ask),
         ), bar.scroll),
         editorScroll === undefined ? floatingEditor : createPortal(floatingEditor, editorScroll),
       );
@@ -1618,80 +1356,48 @@ window.__ModuleLoader__.load({
 
     // ---------------------------------------------------------------- registration
 
-    const services = {
-      async create(request) { return transport(await api().create(request)); },
-      async stream(request) { return api().stream(request); },
-      async cancel(chatId) { return transport(await api().cancel({ chatId })); },
-      async close(chatId) { return transport(await api().close({ chatId })); },
-    };
-
-    let mounted;
-
-    function api() {
-      if (mounted === undefined) throw new Error('Aside is not mounted.');
-      return mounted;
-    }
-
-    /** Unwrap the Remote transport envelope; the Host result keeps its own shape. */
-    function transport(result) {
-      if (result !== null && typeof result === 'object' && result.ok === true) return result.value;
-      return {
-        ok: false,
-        error: {
-          code: 'transport_error',
-          message: result?.error?.message ?? 'The discussion service failed.',
-          recoverable: true,
-        },
-      };
-    }
-
     function apply(ctx) {
       const locale = currentLocale();
       const access = createAccess(ctx);
 
       ctx.effect(() => {
         const style = document.createElement('style');
-        style.dataset.dshAside = '';
+        style.dataset.dshAnnotation = '';
         style.textContent = STYLES;
         document.head.append(style);
         return () => style.remove();
-      }, 'dsh-aside.styles');
+      }, 'dsh-annotations.styles');
 
-      ctx.effect(() => {
-        const dispose = ctx.inputTriggers.registerSource({
-          trigger: '@',
-          name: SOURCE,
-          order: 1_000,
-          candidates: async () => [],
-          onPick: () => undefined,
-          codec: {
-            clipboardText: (ref) => {
-              const decoded = decodeChip(ref);
-              return decoded === undefined ? '' : decoded.annotations.map(annotation => annotation.text).join('\n\n');
-            },
-            serialize: async (ref, signal) => {
-              if (signal.aborted) throw signal.reason;
-              const decoded = decodeChip(ref);
-              return decoded === undefined ? '' : serializeAnnotations(decoded.annotations);
-            },
-          },
-        });
-        return () => dispose();
-      }, 'dsh-aside.reference-source');
+      const codec = {
+        clipboardText: (ref) => {
+          const decoded = decodeChip(ref);
+          return decoded === undefined ? '' : decoded.annotations.map(annotation => annotation.text).join('\n\n');
+        },
+        serialize: async (ref, signal) => {
+          if (signal.aborted) throw signal.reason;
+          const decoded = decodeChip(ref);
+          return decoded === undefined ? '' : serializeAnnotations(decoded.annotations);
+        },
+      };
+      for (const name of [SOURCE, LEGACY_SOURCE]) {
+        ctx.effect(() => ctx.inputTriggers.registerSource({
+          trigger: '@', name, order: 1_000, candidates: async () => [], onPick: () => undefined, codec,
+        }), `dsh-annotations.reference-source.${name}`);
+      }
 
       const slots = ctx.slots;
 
       ctx.effect(() => slots.inject('conversation.input.overlay', () => slots.register({
         name: 'conversation.input.overlay',
-        id: 'dsh-aside-dock',
+        id: 'dsh-annotations-dock',
         order: 40,
-      }, () => h(AsideDock, { access, locale, onEdit: index => access.openAnnotation?.(index, true) }))), 'dsh-aside.dock');
+      }, () => h(AnnotationDock, { access, locale, onEdit: index => access.openAnnotation?.(index, true) }))), 'dsh-annotations.dock');
 
       ctx.effect(() => slots.inject('shell.overlay', () => slots.register({
         name: 'shell.overlay',
-        id: 'dsh-aside',
+        id: 'dsh-annotations',
         order: 91,
-      }, () => h(AsideOverlay, { ctx, access, locale }))), 'dsh-aside.overlay');
+      }, () => h(AnnotationOverlay, { access, locale }))), 'dsh-annotations.overlay');
 
       const shadow = key => slots.inject('conversation.chat.node', () => {
         let cachedOriginal;
@@ -1711,67 +1417,19 @@ window.__ModuleLoader__.load({
         };
         return slots.register({ name: 'conversation.chat.node', key, priority: -100, locale: 'conversation' }, Shadow);
       });
-      ctx.effect(() => { const dispose = shadow('user'); return () => dispose(); }, 'dsh-aside.shadow-user');
-      ctx.effect(() => { const dispose = shadow('steering'); return () => dispose(); }, 'dsh-aside.shadow-steering');
-
-      ctx.effect(() => {
-        const disposeType = ctx.sidebarRightTabs.register({
-          id: 'dsh-aside',
-          kind: 'aside',
-          keepMounted: true,
-          title: () => MESSAGES[locale].aside,
-        });
-        const disposeBody = slots.inject('sidebar.right.pane.tab', () => slots.register({
-          name: 'sidebar.right.pane.tab',
-          key: 'dsh-aside',
-        }, (props) => {
-          const hook = props?.useTabInfo;
-          const tab = typeof hook === 'function' ? hook().tab : undefined;
-          const params = tab?.navigation?.params ?? {};
-          const sessionId = typeof params.sessionId === 'string' ? params.sessionId
-            : typeof props?.sessionId === 'string' ? props.sessionId
-              : typeof tab?.sessionId === 'string' ? tab.sessionId : undefined;
-          return h(AsidePanel, { ctx, access, locale, params: {
-            sessionId,
-            atSeq: typeof params.atSeq === 'number' ? params.atSeq : undefined,
-            text: typeof params.text === 'string' ? params.text : undefined,
-          } });
-        }));
-        return () => { disposeBody(); disposeType(); };
-      }, 'dsh-aside.tab');
-
-      ctx.effect(() => {
-        let disposed = false;
-        void ctx.remote.$mount(wireRemote(require('zod'))).then((dispose) => {
-          if (disposed) { dispose(); return; }
-          mounted = ctx.get('remote.aside');
-          return () => { mounted = undefined; dispose(); };
-        }).catch((cause) => {
-          console.warn('[dsh-aside] could not mount the discussion service', cause);
-        });
-        return () => { disposed = true; mounted = undefined; };
-      }, 'dsh-aside.remote');
-    }
-
-    /** dsh-better-sidebar's public client service, when that plugin is here
-     *  (it is optional: Cordis refuses an undeclared service access, so ask). */
-    function sidebarService(ctx) {
-      try {
-        return ctx.get('betterSidebar');
-      } catch {
-        return undefined;
-      }
+      ctx.effect(() => { const dispose = shadow('user'); return () => dispose(); }, 'dsh-annotations.shadow-user');
+      ctx.effect(() => { const dispose = shadow('steering'); return () => dispose(); }, 'dsh-annotations.shadow-steering');
     }
 
     return {
-      inject: ['sessions', 'slots', 'conversation', 'inputTriggers', 'uiConversation', 'remote', 'sidebarRight', 'sidebarRightTabs'],
+      inject: ['sessions', 'slots', 'conversation', 'inputTriggers', 'uiConversation'],
       apply,
       __test: {
         offsetsOf,
         rangeEndingInHost,
         serializeAnnotations,
-        parseAsideContext,
-        extractAsideContent,
+        parseAnnotationContext,
+        extractAnnotationContent,
         chipPayload,
         decodeChip,
         occurrenceEditSpan,

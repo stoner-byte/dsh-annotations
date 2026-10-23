@@ -27,30 +27,37 @@ const api = module.factory((name) => {
   throw new Error(`unexpected module ${name}`);
 }).__test;
 
-test('selection toolbar is agent-only', () => {
-  assert.match(source, /descriptor\.source !== 'assistant'/);
-});
-
 test('annotation payload survives the model-facing round trip', () => {
   const annotations = [
     { text: 'a < b & c', comment: 'why?' },
     { text: 'line1\nline2' },
   ];
   const xml = api.serializeAnnotations(annotations);
-  const parsed = api.parseAsideContext(`${xml}\n\nMy real question`);
+  const parsed = api.parseAnnotationContext(`${xml}\n\nMy real question`);
   assert.deepEqual(parsed, { annotations, start: 0, end: xml.length });
 });
 
-test('client and host declare the same four methods', async () => {
-  const host = await readFile(fileURLToPath(new URL('../lib/typert.js', import.meta.url)), 'utf8');
-  for (const method of ['create', 'stream', 'cancel', 'close']) {
-    assert.ok(source.includes(`wireInvocation('${method}'`), `client.js must declare ${method}`);
-    assert.ok(host.includes(`descriptor('${method}'`), `lib/typert.js must declare ${method}`);
-  }
+test('selection toolbar is agent-only and offers only the annotation action', () => {
+  const overlay = source.split('function AnnotationOverlay(')[1].split('function focusComposer(')[0];
+  assert.match(source, /descriptor\.source !== 'assistant'/);
+  assert.match(overlay, /h\(IconQuote\), messages.add\)/);
+  assert.doesNotMatch(overlay, /IconAsk|sidechat|sidebarRight/);
 });
 
 test('plain messages are not treated as annotations', () => {
-  assert.equal(api.parseAsideContext('hello <aside_context>'), undefined);
+  assert.equal(api.parseAnnotationContext('hello <annotation_context>'), undefined);
+});
+
+test('historical aside XML remains readable without changing its message text', () => {
+  const annotations = [{ text: 'old selection', comment: 'old note' }];
+  const xml = api.serializeAnnotations(annotations)
+    .replace('<annotation_context>', '<aside_context>')
+    .replace('</annotation_context>', '</aside_context>');
+  assert.deepEqual(api.parseAnnotationContext(xml), { annotations, start: 0, end: xml.length });
+  const parsed = api.extractAnnotationContent([{ type: 'text', text: `before${xml}after` }]);
+  assert.deepEqual(parsed.annotations, annotations);
+  assert.deepEqual(parsed.content, [{ type: 'text', text: 'beforeafter' }]);
+  assert.equal(api.parseAnnotationContext(xml.replace('</aside_context>', '</annotation_context>')), undefined);
 });
 
 test('sent annotations render at the beginning, middle, or end without changing surrounding text', () => {
@@ -58,13 +65,13 @@ test('sent annotations render at the beginning, middle, or end without changing 
   const xml = api.serializeAnnotations(annotations);
   for (const [before, after] of [['', ' qwe'], ['qe', 'after'], ['aats', '']]) {
     const text = `${before}${xml}${after}`;
-    assert.deepEqual(api.parseAsideContext(text), {
+    assert.deepEqual(api.parseAnnotationContext(text), {
       annotations, start: before.length, end: before.length + xml.length,
     });
   }
-  assert.equal(api.parseAsideContext(`x${xml}y${xml}z`), undefined);
-  assert.equal(api.parseAsideContext(xml.replace('</selected_text>', '</wrong_text>')), undefined);
-  assert.equal(api.parseAsideContext(xml.replace('index="1"', 'index="2"')), undefined);
+  assert.equal(api.parseAnnotationContext(`x${xml}y${xml}z`), undefined);
+  assert.equal(api.parseAnnotationContext(xml.replace('</selected_text>', '</wrong_text>')), undefined);
+  assert.equal(api.parseAnnotationContext(xml.replace('index="1"', 'index="2"')), undefined);
 });
 
 test('sent display strips only the XML span and preserves text blocks and attachments', () => {
@@ -76,13 +83,13 @@ test('sent display strips only the XML span and preserves text blocks and attach
     { type: 'image', id: 'image-1' },
     { type: 'text', text: 'later' },
   ];
-  const parsed = api.extractAsideContent(content);
+  const parsed = api.extractAnnotationContent(content);
   assert.deepEqual(parsed.annotations, [{ text: 'passage' }]);
   assert.deepEqual(parsed.content, [
     content[0], { type: 'text', text: '' }, { type: 'text', text: ' after' }, content[3], content[4],
   ]);
   assert.deepEqual(content[1], { type: 'text', text: xml.slice(0, 22) });
-  assert.equal(api.extractAsideContent([
+  assert.equal(api.extractAnnotationContent([
     { type: 'text', text: xml.slice(0, 22) }, content[3], { type: 'text', text: xml.slice(22) },
   ]), undefined);
 });
@@ -122,6 +129,21 @@ test('closing the capsule clears only the annotation reference', () => {
   const input = { state: { getSnapshot: () => snapshot }, replaceText: (text, span) => { removal = { text, span }; return true; } };
   assert.equal(api.writeAnnotations(input, []), true);
   assert.deepEqual(removal, { text: '', span: { start: 2, end: 3, draftRev: 4 } });
+});
+
+test('old draft chips remain readable and edits use the renamed source', () => {
+  const occurrence = { source: 'aside-annotations', label: '__dsh_aside_annotations__',
+    ref: JSON.stringify(api.chipPayload('s', [{ text: 'old' }])), clipboardText: 'old', offset: 0, length: 3 };
+  const snapshot = { draft: 'old', draftRev: 2, occurrences: [occurrence] };
+  assert.deepEqual(api.readAnnotations(snapshot), [{ text: 'old', sessionId: 's' }]);
+  let inserted;
+  const input = { state: { getSnapshot: () => snapshot },
+    insertReference: (reference, span) => { inserted = { reference, span }; return true; } };
+  assert.equal(api.writeAnnotations(input, [{ text: 'new', sessionId: 's' }]), true);
+  assert.deepEqual(inserted.span, { start: 0, end: 1, draftRev: 2 });
+  assert.equal(inserted.reference.source, 'dsh-annotations');
+  assert.equal(inserted.reference.label, '__dsh_annotations__');
+  assert.deepEqual(api.readAnnotations({ occurrences: [{ ...inserted.reference }] }), [{ text: 'new', sessionId: 's' }]);
 });
 
 test('annotations are read from the chips and count once per payload', () => {
@@ -234,8 +256,8 @@ test('badge uses scroll-content coordinates inside the scrollport', () => {
   assert.deepEqual(api.placeMarker({ top: 335, right: 739 }, scroll), { top: 492, left: 641 });
   scroll.scrollTop += 100;
   assert.deepEqual(api.placeMarker({ top: 235, right: 739 }, scroll), { top: 492, left: 641 });
-  const overlay = source.split('function AsideOverlay(')[1].split('function focusComposer(')[0];
-  assert.match(source, /\.dsh-aside-marker\{position:absolute/);
+  const overlay = source.split('function AnnotationOverlay(')[1].split('function focusComposer(')[0];
+  assert.match(source, /\.dsh-annotations-marker\{position:absolute/);
   assert.match(overlay, /scroll.append\(marker\)/);
   assert.match(overlay, /for \(const marker of markers.values\(\)\) marker.remove\(\)/);
   assert.match(overlay, /scroll.style.position = previousPosition/);
@@ -265,7 +287,7 @@ test('transcript controls use scroll coordinates and detached editor falls back 
   const box = { style: {} };
   api.positionAtAnchor(box, { top: 135, left: 400 }, scroll, { top: -54, left: 2 });
   assert.deepEqual(box.style, { top: '360px', left: '340px' });
-  const overlay = source.split('function AsideOverlay(')[1].split('function focusComposer(')[0];
+  const overlay = source.split('function AnnotationOverlay(')[1].split('function focusComposer(')[0];
   assert.match(overlay, /bar === null \? null : createPortal\(h\('div'/);
   assert.match(overlay, /createPortal\(floatingEditor, editorScroll\)/);
   assert.match(overlay, /editorScroll === undefined \? 'fixed' : 'absolute'/);
@@ -275,19 +297,19 @@ test('transcript controls use scroll coordinates and detached editor falls back 
 });
 
 test('composer annotation preview opens on hover without click-to-toggle', () => {
-  const dock = source.split('function AsideDock(')[1].split('function AsideMessages(')[0];
+  const dock = source.split('function AnnotationDock(')[1].split('function AnnotationMessages(')[0];
   assert.match(dock, /onMouseEnter: \(\) => setExpanded\(true\)/);
   assert.match(dock, /onMouseLeave: \(\) => setExpanded\(false\)/);
-  assert.doesNotMatch(dock.split("className: 'dsh-aside-capsule'")[1].split("h('span'")[0], /onClick/);
-  assert.match(dock, /className: 'dsh-aside-close'/);
+  assert.doesNotMatch(dock.split("className: 'dsh-annotations-capsule'")[1].split("h('span'")[0], /onClick/);
+  assert.match(dock, /className: 'dsh-annotations-close'/);
   assert.match(dock, /onClick: clear/);
   assert.doesNotMatch(dock, /expanded \? '▾' : '▸'/);
 });
 
 test('composer entries scroll to loaded text and share the badge editor', () => {
-  const dock = source.split('function AsideDock(')[1].split('function AsideMessages(')[0];
-  const overlay = source.split('function AsideOverlay(')[1].split('function focusComposer(')[0];
-  const preview = source.split('function AsidePreview(')[1].split('function placeDock(')[0];
+  const dock = source.split('function AnnotationDock(')[1].split('function AnnotationMessages(')[0];
+  const overlay = source.split('function AnnotationOverlay(')[1].split('function focusComposer(')[0];
+  const preview = source.split('function AnnotationPreview(')[1].split('function placeDock(')[0];
   const scroll = { scrollTop: 300 };
   api.scrollAnnotationIntoView({ top: 900, bottom: 920 }, scroll, { top: 100, bottom: 700 });
   assert.equal(scroll.scrollTop, 800);
@@ -308,38 +330,38 @@ test('composer entries scroll to loaded text and share the badge editor', () => 
   assert.match(overlay, /JSON.stringify\(access.currentAnnotations\(\)\[index\]\) === original/);
   assert.match(overlay, /openEditor\(\{ \.\.\.annotation, sessionId, index, original, scroll: target.scroll, range: target.range, rect: target.rect \}\)/);
   assert.doesNotMatch(overlay, /fallbackRect/);
-  assert.doesNotMatch(source, /AsideDockHost|dsh-aside-dock-editor|--dsh-aside-editor-/);
+  assert.doesNotMatch(source, /AnnotationDockHost|dsh-annotations-dock-editor|--dsh-annotations-editor-/);
 });
 
 test('composer and sent annotations share one hover preview layout', () => {
-  const dock = source.split('function AsideDock(')[1].split('function AsideMessages(')[0];
-  const sent = source.split('function AsideMessages(')[1].split('function contentText(')[0];
-  const preview = source.split('function AsidePreview(')[1].split('function placeDock(')[0];
-  assert.match(dock, /h\(AsidePreview, \{\s*annotations, locale, className: 'dsh-aside-list'/);
-  assert.match(sent, /h\(AsidePreview, \{ annotations, locale, className: 'dsh-aside-card-body' \}\)/);
-  assert.match(source, /\.dsh-aside-preview\{[^}]*width:min\(320px,calc\(100vw - 32px\)\)/);
+  const dock = source.split('function AnnotationDock(')[1].split('function AnnotationMessages(')[0];
+  const sent = source.split('function AnnotationMessages(')[1].split('function contentText(')[0];
+  const preview = source.split('function AnnotationPreview(')[1].split('function placeDock(')[0];
+  assert.match(dock, /h\(AnnotationPreview, \{\s*annotations, locale, className: 'dsh-annotations-list'/);
+  assert.match(sent, /h\(AnnotationPreview, \{ annotations, locale, className: 'dsh-annotations-card-body' \}\)/);
+  assert.match(source, /\.dsh-annotations-preview\{[^}]*width:min\(320px,calc\(100vw - 32px\)\)/);
   assert.match(source, /background:var\(--dsh-surface-raised,Canvas\)/);
-  assert.match(source, /\.dsh-aside-preview-index\{[^}]*background:var\(--dsh-accent,#3b82f6\)/);
-  assert.match(preview, /className: 'dsh-aside-preview-index' \}, String\(index \+ 1\)/);
+  assert.match(source, /\.dsh-annotations-preview-index\{[^}]*background:var\(--dsh-accent,#3b82f6\)/);
+  assert.match(preview, /className: 'dsh-annotations-preview-index' \}, String\(index \+ 1\)/);
   assert.doesNotMatch(preview, /messages.quote|messages.commentLabel|blockquote/);
   assert.match(dock, /window.innerWidth - 16 - dockRef.current.getBoundingClientRect\(\).left - list.offsetWidth/);
   assert.match(preview, /onRemove === undefined \? null/);
 });
 
 test('preview expands only truncated text and keeps native full-text tooltips', () => {
-  const preview = source.split('function AsidePreview(')[1].split('function placeDock(')[0];
+  const preview = source.split('function AnnotationPreview(')[1].split('function placeDock(')[0];
   assert.match(preview, /text.scrollHeight > text.clientHeight \+ 1/);
   assert.match(preview, /truncated\[index\] \? h\('button'/);
   assert.match(preview, /'aria-expanded': expandedIndex === index/);
   assert.match(preview, /event.stopPropagation\(\); setExpandedIndex\(/);
   assert.match(preview, /title: annotation.text/);
   assert.match(preview, /title: annotation.comment/);
-  assert.match(source, /\.dsh-aside-preview-row-expanded \.dsh-aside-preview-quote,[^}]+display:block;overflow:visible/);
-  assert.match(source, /\.dsh-aside-preview\{[^}]+max-height:240px;\s*overflow:auto/);
+  assert.match(source, /\.dsh-annotations-preview-row-expanded \.dsh-annotations-preview-quote,[^}]+display:block;overflow:visible/);
+  assert.match(source, /\.dsh-annotations-preview\{[^}]+max-height:240px;\s*overflow:auto/);
 });
 
 test('sent annotation is a hover pill positioned after attachments', () => {
-  const sent = source.split('function AsideMessages(')[1].split('function contentText(')[0];
+  const sent = source.split('function AnnotationMessages(')[1].split('function contentText(')[0];
   assert.equal(api.placeSentPill({ top: 100 }, { bottom: 230 }), 138);
   assert.equal(api.sentPopoverBelow({ top: 50, bottom: 80 }, 150, 700), true);
   assert.equal(api.sentPopoverBelow({ top: 420, bottom: 450 }, 150, 700), false);
@@ -349,7 +371,7 @@ test('sent annotation is a hover pill positioned after attachments', () => {
   assert.match(sent, /const resize = new ResizeObserver\(place\)/);
   assert.doesNotMatch(sent, /onClick: \(\) => setExpanded|▸|▾/);
   assert.match(source, /\[data-message-attachments\]\{margin-bottom:38px\}/);
-  assert.doesNotMatch(source, /\.dsh-aside-card-pill\{[^}]*width:100%/);
+  assert.doesNotMatch(source, /\.dsh-annotations-card-pill\{[^}]*width:100%/);
 });
 
 test('editor keeps the hidden annotation chip when Backspace or a selection reaches it', () => {
