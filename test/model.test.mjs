@@ -327,7 +327,7 @@ test('composer annotation preview opens on hover without click-to-toggle', () =>
   assert.match(dock, /className: 'dsh-annotations-capsule-text'/);
   assert.match(dock, /h\('path', \{ d: 'M5 3\.75h10/);
   assert.match(source, /\.dsh-annotations-dock:hover \.dsh-annotations-capsule-text,[^}]+mask-image:linear-gradient\(to right,#000 calc\(100% - 40px\),transparent calc\(100% - 14px\)\)/);
-  assert.match(source, /\.dsh-annotations-delete\{[^}]+border-radius:5px/);
+  assert.match(source, /\.dsh-annotations-delete\{[^}]+border-radius:8px/);
   assert.match(source, /\.dsh-annotations-close\{position:absolute;z-index:1;top:3px;right:3px;width:24px;height:24px/);
   assert.match(dock, /className: 'dsh-annotations-delete dsh-annotations-close'/);
   assert.doesNotMatch(source, /dsh-annotations-capsule-count|padding:0 31px/);
@@ -370,7 +370,7 @@ test('composer and sent annotations share one hover preview layout', () => {
   assert.match(sent, /h\(AnnotationPreview, \{ annotations, locale, className: 'dsh-annotations-card-body' \}\)/);
   assert.match(source, /\.dsh-annotations-preview\{[^}]*width:min\(320px,calc\(100vw - 32px\)\)/);
   assert.match(source, /\.dsh-annotations-dock:has\(\.dsh-annotations-list\),\.dsh-annotations-card:has\(\.dsh-annotations-card-body\)\{z-index:6\}/);
-  assert.match(source, /background:var\(--dsh-surface-raised,Canvas\)/);
+  assert.match(source, /\.dsh-annotations-preview\{[^}]*background:var\(--dsw-alias-bg-overlay,Canvas\)/);
   assert.match(source, /\.dsh-annotations-preview-index\{[^}]*color:var\(--dsw-alias-label-secondary,currentColor\)/);
   assert.doesNotMatch(source, /\.dsh-annotations-preview-index\{[^}]*background:/);
   assert.ok(preview.includes("h('span', { className: 'dsh-annotations-preview-index' }, `${String(index + 1)}.`)"));
@@ -392,7 +392,23 @@ test('all annotation delete controls share a labeled icon and compact radii', ()
   assert.match(editor, /messages.cancel/);
   assert.match(editor, /dsh-annotations-button dsh-annotations-button-primary/);
   assert.doesNotMatch(editor, /IconSend|dsh-annotations-editor-submit/);
-  assert.doesNotMatch(source, /border-radius:(?:99px|50%|12px)/);
+  assert.match(source, /\.dsh-annotations-editor\{[^}]*border-radius:12px/);
+  assert.match(source, /\.dsh-annotations-card-pill\{[^}]*border-radius:9px/);
+  assert.doesNotMatch(source, /border-radius:(?:99px|50%|5px)/);
+});
+
+test('annotation surfaces, actions, and highlights follow DSH theme tokens', () => {
+  const css = source.split('const STYLES = `')[1].split('`;')[0];
+  for (const name of ['bar', 'editor', 'preview']) {
+    const block = css.split(`.dsh-annotations-${name}{`)[1].split('\n.')[0];
+    assert.match(block, /background:var\(--dsw-alias-bg-overlay,Canvas\)/);
+  }
+  assert.match(css, /\.dsh-annotations-button-primary\{background:var\(--dsw-alias-brand-primary,Highlight\)/);
+  assert.match(css, /\.dsh-annotations-marker\{[^}]*background:var\(--dsw-alias-brand-primary,Highlight\)/);
+  assert.match(css, /::highlight\(\$\{HIGHLIGHT_ACTIVE\}\)\{background-color:color-mix\(in srgb, var\(--dsw-alias-brand-primary,Highlight\)/);
+  assert.match(css, /\.dsh-annotations-editor textarea::placeholder\{color:var\(--dsw-alias-label-secondary,GrayText\)/);
+  assert.match(css, /\.dsh-annotations-preview-comment\{color:var\(--dsw-alias-label-secondary,currentColor\)/);
+  assert.doesNotMatch(css, /--dsh-(?:accent|surface-raised|border-subtle)|#3b82f6|color:#fff/);
 });
 
 test('preview shows full quote and comment within one scrollable height limit', () => {
