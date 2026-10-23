@@ -122,13 +122,18 @@ body:has(.dsh-aside-dock-editor) .dsh-aside-marker{visibility:hidden}
 [data-composer-seat]:has(.dsh-aside-dock[data-aside-inline]):not(:has(.dsh-aside-dock-editor)) [data-composer-placeholder]{transform:none}
 [data-composer-seat]:has(.dsh-aside-dock-editor) [data-composer-input]{padding-top:calc(var(--dsh-aside-editor-height, 177px) + 53px)}
 [data-composer-seat]:has(.dsh-aside-dock-editor) [data-composer-placeholder]{transform:translateY(calc(var(--dsh-aside-editor-height, 177px) + 49px))}
-.dsh-aside-capsule{display:inline-flex;align-items:center;gap:8px;height:30px;max-width:100%;width:fit-content;padding:0 10px;
+.dsh-aside-capsule{display:inline-flex;align-items:center;gap:8px;height:30px;max-width:100%;width:fit-content;padding:0 38px 0 10px;
   border-radius:9px;cursor:pointer;font:500 12.5px/1 var(--dsh-font-family,system-ui,sans-serif);color:inherit;
   background:color-mix(in srgb, var(--dsh-accent,#3b82f6) 12%, transparent);
   border:1px solid color-mix(in srgb, var(--dsh-accent,#3b82f6) 32%, transparent)}
 .dsh-aside-capsule:hover{background:color-mix(in srgb, var(--dsh-accent,#3b82f6) 18%, transparent)}
 .dsh-aside-capsule-count{display:grid;place-items:center;min-width:18px;height:18px;padding:0 4px;border-radius:99px;
   background:var(--dsh-accent,#3b82f6);color:#fff;font-size:10.5px;font-weight:600}
+.dsh-aside-close{position:absolute;top:3px;right:5px;display:grid;place-items:center;width:24px;height:24px;padding:0;
+  border:1px solid var(--dsh-border-subtle,rgba(127,127,127,.24));border-radius:50%;background:var(--dsh-surface-raised,Canvas);
+  color:inherit;font:18px/1 var(--dsh-font-family,system-ui,sans-serif);cursor:pointer;opacity:0;pointer-events:none}
+.dsh-aside-dock:hover .dsh-aside-close,.dsh-aside-dock:focus-within .dsh-aside-close{opacity:1;pointer-events:auto}
+.dsh-aside-close:focus-visible{outline:2px solid var(--dsh-accent,#3b82f6);outline-offset:2px}
 .dsh-aside-dock:has(.dsh-aside-list)::before{content:"";position:absolute;left:0;right:0;bottom:100%;height:8px}
 .dsh-aside-list{position:absolute;bottom:calc(100% + 8px);left:0;width:320px;display:flex;flex-direction:column;gap:6px;max-height:240px;overflow:auto;
   padding:8px;border-radius:10px;background:var(--dsh-surface-raised,Canvas);
@@ -190,14 +195,14 @@ body:has(.dsh-aside-dock-editor) .dsh-aside-marker{visibility:hidden}
       zh: {
         add: '添加到对话', ask: '在侧边聊天中提问', annotations: '条注释', quote: '所选文本',
         commentPlaceholder: '添加可选评论…', cancel: '取消', save: '保存', remove: '删除',
-        clearAll: '清除全部', aside: '旁注讨论', empty: '这段对话是临时的，只用于讨论所选内容。',
+        clearAll: '清除全部注释', clearFailed: '无法清除注释。', aside: '旁注讨论', empty: '这段对话是临时的，只用于讨论所选内容。',
         inputPlaceholder: '就所选内容提问…', send: '发送', stop: '停止', thinking: '思考中…',
         inherited: '使用主会话模型', close: '关闭', thinkingLabel: '思考',
       },
       en: {
         add: 'Add to chat', ask: 'Ask in side chat', annotations: 'annotations', quote: 'Selected text',
         commentPlaceholder: 'Add an optional comment…', cancel: 'Cancel', save: 'Save', remove: 'Remove',
-        clearAll: 'Clear all', aside: 'Aside', empty: 'This discussion is temporary and only sees the selected passage.',
+        clearAll: 'Delete all annotations', clearFailed: 'Could not delete the annotations.', aside: 'Aside', empty: 'This discussion is temporary and only sees the selected passage.',
         inputPlaceholder: 'Ask about this passage…', send: 'Send', stop: 'Stop', thinking: 'Thinking…',
         inherited: 'Using the parent model', close: 'Close', thinkingLabel: 'Reasoning',
       },
@@ -709,6 +714,29 @@ body:has(.dsh-aside-dock-editor) .dsh-aside-marker{visibility:hidden}
       };
     }
 
+    function editsAnnotationChip(editor, range, type) {
+      const backward = type === 'Backspace' || type.endsWith('Backward');
+      const forward = type === 'Delete' || type.endsWith('Forward');
+      if (range.collapsed && !backward && !forward) return false;
+      return [...editor.querySelectorAll('[data-composer-chip="aside-annotations"]')].some(chip => {
+        // ponytail: mixed selections stay untouched; partial text edits need the editor's transaction hook.
+        if (!range.collapsed) return range.intersectsNode(chip);
+        if (chip.contains(range.startContainer)) return true;
+        const boundary = document.createRange();
+        boundary.selectNode(chip);
+        const gap = range.cloneRange();
+        if (backward) {
+          if (range.compareBoundaryPoints(Range.START_TO_END, boundary) < 0) return false;
+          gap.setStartAfter(chip);
+        } else {
+          if (range.compareBoundaryPoints(Range.START_TO_START, boundary) > 0) return false;
+          gap.setEndBefore(chip);
+        }
+        const text = gap.toString().replace(/[\u200b-\u200d\ufeff]/gu, '');
+        return type.includes('Line') || (type.includes('Word') ? text.trim() === '' : text === '');
+      });
+    }
+
     function AsideDock({ access, locale, onEdit }) {
       const messages = MESSAGES[locale];
       const annotations = useAnnotations(access);
@@ -746,12 +774,53 @@ body:has(.dsh-aside-dock-editor) .dsh-aside-marker{visibility:hidden}
           seat.style.removeProperty('--dsh-aside-editor-top');
         };
       }, [annotations.length]);
+      useEffect(() => {
+        const editor = dockRef.current?.closest('[data-composer-seat]')?.querySelector('[data-composer-input]');
+        if (!editor || annotations.length === 0) return;
+        const protect = (event) => {
+          if (!editor.contains(event.target)) return;
+          let type = event.inputType;
+          if (event.type === 'keydown') {
+            if (event.key === 'Backspace' || event.key === 'Delete') {
+              const direction = event.key === 'Backspace' ? 'Backward' : 'Forward';
+              type = event.metaKey ? `deleteSoftLine${direction}`
+                : event.altKey || event.ctrlKey ? `deleteWord${direction}` : event.key;
+            } else if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'x') {
+              type = 'deleteByCut';
+            } else return;
+          } else if (event.type === 'dragstart') type = 'deleteByDrag';
+          if (!type) return;
+          const target = event.type === 'beforeinput' ? event.getTargetRanges?.()[0] : undefined;
+          const selection = window.getSelection();
+          if (!target && (!selection || selection.rangeCount === 0)) return;
+          const range = target ? document.createRange() : selection.getRangeAt(0);
+          if (target) {
+            range.setStart(target.startContainer, target.startOffset);
+            range.setEnd(target.endContainer, target.endOffset);
+          }
+          if (!editsAnnotationChip(editor, range, type)) return;
+          event.preventDefault();
+          event.stopPropagation();
+        };
+        editor.addEventListener('keydown', protect, true);
+        editor.addEventListener('beforeinput', protect, true);
+        editor.addEventListener('dragstart', protect, true);
+        return () => {
+          editor.removeEventListener('keydown', protect, true);
+          editor.removeEventListener('beforeinput', protect, true);
+          editor.removeEventListener('dragstart', protect, true);
+        };
+      }, [annotations.length > 0]);
       if (annotations.length === 0) return null;
       const remove = (index) => {
         const input = access.currentInput();
         if (input === undefined) return;
         const next = access.currentAnnotations().filter((_, position) => position !== index);
         writeAnnotations(input, next);
+      };
+      const clear = () => {
+        const input = access.currentInput();
+        if (input !== undefined && !writeAnnotations(input, [])) input.notify?.('error', messages.clearFailed);
       };
       return h('div', {
         ref: dockRef, className: 'dsh-aside-dock', 'data-aside-skip': '',
@@ -767,8 +836,11 @@ body:has(.dsh-aside-dock-editor) .dsh-aside-marker{visibility:hidden}
         },
           h('span', { className: 'dsh-aside-capsule-count' }, String(annotations.length)),
           h('span', null, `${String(annotations.length)} ${messages.annotations}`),
-          h('span', { style: { fontSize: '10px', opacity: 0.6 } }, expanded ? '▾' : '▸'),
         ),
+        h('button', {
+          type: 'button', className: 'dsh-aside-close',
+          'aria-label': messages.clearAll, title: messages.clearAll, onClick: clear,
+        }, '×'),
         expanded ? h('div', { className: 'dsh-aside-list', role: 'list' }, annotations.map((annotation, index) => h('div', {
           key: `aside-${String(index)}`,
           role: 'listitem',
@@ -1441,6 +1513,7 @@ body:has(.dsh-aside-dock-editor) .dsh-aside-marker{visibility:hidden}
         placeFloating,
         placeMarker,
         placeDock,
+        editsAnnotationChip,
         clamp,
       },
     };

@@ -69,6 +69,20 @@ test('a chip is one atomic editor span even behind another reference', () => {
   assert.equal(api.occurrenceEditSpan(stale, stale.occurrences[1]), undefined);
 });
 
+test('closing the capsule clears only the annotation reference', () => {
+  const snapshot = {
+    draft: '[file] passage', draftRev: 4,
+    occurrences: [
+      { offset: 0, length: 6, label: '[file]', clipboardText: '[file]', source: 'file' },
+      { offset: 7, length: 7, label: '__dsh_aside_annotations__', clipboardText: 'passage', source: 'aside-annotations' },
+    ],
+  };
+  let removal;
+  const input = { state: { getSnapshot: () => snapshot }, replaceText: (text, span) => { removal = { text, span }; return true; } };
+  assert.equal(api.writeAnnotations(input, []), true);
+  assert.deepEqual(removal, { text: '', span: { start: 2, end: 3, draftRev: 4 } });
+});
+
 test('annotations are read from the chips and count once per payload', () => {
   const ref = JSON.stringify(api.chipPayload('s', [{ text: 'one' }, { text: 'two', comment: 'note' }]));
   const snapshot = {
@@ -111,6 +125,37 @@ test('composer annotation preview opens on hover without click-to-toggle', () =>
   assert.match(dock, /onMouseEnter: \(\) => setExpanded\(true\)/);
   assert.match(dock, /onMouseLeave: \(\) => setExpanded\(false\)/);
   assert.doesNotMatch(dock.split("className: 'dsh-aside-capsule'")[1].split("h('span'")[0], /onClick/);
+  assert.match(dock, /className: 'dsh-aside-close'/);
+  assert.match(dock, /onClick: clear/);
+  assert.doesNotMatch(dock, /expanded \? '▾' : '▸'/);
+});
+
+test('editor keeps the hidden annotation chip when Backspace or a selection reaches it', () => {
+  const previousDocument = globalThis.document;
+  const previousRange = globalThis.Range;
+  globalThis.Range = { START_TO_END: 1, START_TO_START: 2 };
+  globalThis.document = { createRange: () => ({ selectNode() {} }) };
+  try {
+    const chip = { contains: () => false };
+    const editor = { querySelectorAll: () => [chip] };
+    const caret = (position, gap) => ({
+      collapsed: true, startContainer: null,
+      compareBoundaryPoints: () => position,
+      cloneRange: () => ({ setStartAfter() {}, setEndBefore() {}, toString: () => gap }),
+    });
+    assert.equal(api.editsAnnotationChip(editor, caret(1, ''), 'Backspace'), true);
+    assert.equal(api.editsAnnotationChip(editor, caret(1, 'text'), 'Backspace'), false);
+    assert.equal(api.editsAnnotationChip(editor, caret(-1, ''), 'Backspace'), false);
+    assert.equal(api.editsAnnotationChip(editor, caret(-1, ''), 'Delete'), true);
+    assert.equal(api.editsAnnotationChip(editor, caret(1, 'text'), 'deleteSoftLineBackward'), true);
+    assert.equal(api.editsAnnotationChip(editor, caret(1, '  '), 'deleteWordBackward'), true);
+    assert.equal(api.editsAnnotationChip(editor, caret(1, 'text'), 'deleteWordBackward'), false);
+    assert.equal(api.editsAnnotationChip(editor, { collapsed: false, intersectsNode: () => true }, 'insertText'), true);
+    assert.equal(api.editsAnnotationChip(editor, { collapsed: false, intersectsNode: () => false }, 'deleteByCut'), false);
+  } finally {
+    globalThis.document = previousDocument;
+    globalThis.Range = previousRange;
+  }
 });
 
 test('composer annotation sits beside an image or below a crowded attachment rail', () => {
