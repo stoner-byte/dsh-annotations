@@ -25,32 +25,36 @@ window.__ModuleLoader__.load({
     const GAP = 18;
     const MARKER_SIZE = 18;
     const BAR_HEIGHT = 36;
-    const BAR_WIDTH = 140;
 
     const STYLES = `
-.dsh-annotations-bar{box-sizing:border-box;position:absolute;z-index:5;display:flex;align-items:center;gap:2px;height:${BAR_HEIGHT}px;padding:3px;border-radius:10px;
+.dsh-annotations-bar{box-sizing:border-box;position:absolute;z-index:5;display:flex;align-items:center;gap:2px;height:${BAR_HEIGHT}px;padding:3px;border-radius:8px;
   background:var(--dsh-surface-raised,color-mix(in srgb, Canvas 92%, CanvasText 8%));color:inherit;
   border:1px solid var(--dsh-border-subtle,rgba(127,127,127,.28));box-shadow:0 8px 24px rgba(0,0,0,.16);
   font:500 12.5px/1.2 var(--dsh-font-family,system-ui,sans-serif);white-space:nowrap}
-.dsh-annotations-bar button{all:unset;display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 9px;border-radius:7px;cursor:pointer}
+.dsh-annotations-bar button{all:unset;display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 9px;border-radius:5px;cursor:pointer}
 .dsh-annotations-bar button:hover,.dsh-annotations-bar button:focus-visible{background:color-mix(in srgb, currentColor 10%, transparent)}
 .dsh-annotations-bar svg{width:15px;height:15px;flex:none;opacity:.85}
-.dsh-annotations-editor{position:relative;z-index:81;width:320px;display:flex;flex-direction:column;gap:8px;padding:10px;border-radius:12px;
+.dsh-annotations-editor{box-sizing:border-box;position:relative;z-index:81;width:320px;display:flex;flex-direction:column;gap:8px;padding:10px;border-radius:8px;overflow:auto;
   background:var(--dsh-surface-raised,color-mix(in srgb, Canvas 95%, CanvasText 5%));border:1px solid var(--dsh-border-subtle,rgba(127,127,127,.28));
   box-shadow:0 12px 32px rgba(0,0,0,.2);font:400 13px/1.45 var(--dsh-font-family,system-ui,sans-serif)}
-.dsh-annotations-editor-quote{max-height:96px;overflow:auto;padding:6px 8px;border-radius:8px;font-size:12px;opacity:.75;
+.dsh-annotations-editor-quote{max-height:96px;overflow:auto;padding:6px 8px;border-radius:5px;font-size:12px;opacity:.75;
   background:color-mix(in srgb, currentColor 6%, transparent);white-space:pre-wrap}
-.dsh-annotations-editor textarea{resize:none;min-height:68px;padding:7px 8px;border-radius:8px;font:inherit;color:inherit;
+.dsh-annotations-editor textarea{resize:none;min-height:68px;padding:7px 8px;border-radius:5px;font:inherit;color:inherit;
   background:transparent;border:1px solid var(--dsh-border-subtle,rgba(127,127,127,.3));outline:none}
 .dsh-annotations-editor textarea:focus{border-color:var(--dsh-accent,#3b82f6)}
 .dsh-annotations-editor-actions{display:flex;align-items:center;gap:6px}
 .dsh-annotations-editor-actions .dsh-annotations-spacer{flex:1}
-.dsh-annotations-button{all:unset;display:inline-flex;align-items:center;height:26px;padding:0 10px;border-radius:7px;cursor:pointer;
+.dsh-annotations-button{all:unset;display:inline-flex;align-items:center;height:26px;padding:0 10px;border-radius:5px;cursor:pointer;
   font:500 12.5px/1 var(--dsh-font-family,system-ui,sans-serif)}
 .dsh-annotations-button:hover{background:color-mix(in srgb, currentColor 9%, transparent)}
 .dsh-annotations-button-primary{background:var(--dsh-accent,#3b82f6);color:#fff}
 .dsh-annotations-button-primary:hover{background:color-mix(in srgb, var(--dsh-accent,#3b82f6) 88%, #fff)}
-.dsh-annotations-marker{position:absolute;z-index:1;display:grid;place-items:center;width:18px;height:18px;border-radius:99px;
+.dsh-annotations-delete{all:unset;box-sizing:border-box;display:grid;place-items:center;flex:none;width:26px;height:26px;border-radius:5px;
+  color:var(--dsw-alias-state-error-primary,#dc2626);cursor:pointer}
+.dsh-annotations-delete svg{width:16px;height:16px}
+.dsh-annotations-delete:hover,.dsh-annotations-delete:focus-visible{background:color-mix(in srgb, currentColor 10%, transparent)}
+.dsh-annotations-delete:focus-visible{outline:2px solid currentColor;outline-offset:1px}
+.dsh-annotations-marker{position:absolute;z-index:1;display:grid;place-items:center;width:18px;height:18px;border-radius:5px;
   background:var(--dsh-accent,#3b82f6);color:#fff;font:600 10.5px/1 var(--dsh-font-family,system-ui,sans-serif);
   cursor:pointer;border:none;box-shadow:0 2px 6px rgba(0,0,0,.2);padding:0}
 .dsh-annotations-marker:focus-visible{outline:2px solid color-mix(in srgb, var(--dsh-accent,#3b82f6) 45%, #fff);outline-offset:1px}
@@ -62,11 +66,11 @@ window.__ModuleLoader__.load({
 .dsh-annotations-capsule-text{display:inline-block;min-width:0}
 .dsh-annotations-dock:hover .dsh-annotations-capsule-text,.dsh-annotations-dock:focus-within .dsh-annotations-capsule-text{
   mask-image:linear-gradient(to right,#000 calc(100% - 40px),transparent calc(100% - 14px))}
-.dsh-annotations-close{position:absolute;z-index:1;top:3px;right:7px;display:grid;place-items:center;width:24px;height:24px;padding:0;
-  border:1px solid var(--dsw-alias-border-l1,rgba(127,127,127,.25));border-radius:50%;background:var(--dsw-alias-bg-layer-1,Canvas);color:var(--dsw-alias-label-secondary,currentColor);
-  cursor:pointer;opacity:0;pointer-events:none;transition:opacity .14s ease,background-color .14s ease,color .14s ease}
+.dsh-annotations-close{position:absolute;z-index:1;top:3px;right:7px;width:24px;height:24px;
+  border:1px solid var(--dsw-alias-border-l1,rgba(127,127,127,.25));background:var(--dsw-alias-bg-layer-1,Canvas);
+  opacity:0;pointer-events:none;transition:opacity .14s ease,background-color .14s ease,color .14s ease}
 .dsh-annotations-dock:hover .dsh-annotations-close,.dsh-annotations-dock:focus-within .dsh-annotations-close{opacity:1;pointer-events:auto}
-.dsh-annotations-close:hover,.dsh-annotations-close:focus-visible{background:var(--dsw-alias-bg-layer-2,rgba(127,127,127,.1));color:var(--dsw-alias-label-primary,currentColor)}
+.dsh-annotations-close:hover,.dsh-annotations-close:focus-visible{background:var(--dsw-alias-bg-layer-2,rgba(127,127,127,.1))}
 .dsh-annotations-close:focus-visible{outline:2px solid var(--dsw-alias-brand-primary,#3b82f6);outline-offset:1px}
 .dsh-annotations-dock:has(.dsh-annotations-list)::before{content:"";position:absolute;left:0;right:0;bottom:100%;height:8px}
 .dsh-annotations-list{left:0}
@@ -78,7 +82,7 @@ window.__ModuleLoader__.load({
   font:500 12.5px/1 var(--dsh-font-family,system-ui,sans-serif)}
 .dsh-annotations-dock:has(.dsh-annotations-list),.dsh-annotations-card:has(.dsh-annotations-card-body){z-index:6}
 .dsh-annotations-card-pill{display:inline-flex;align-items:center;gap:7px;height:30px;padding:0 11px;border:1px solid var(--dsw-alias-border-l1,rgba(127,127,127,.25));
-  border-radius:99px;background:var(--dsw-alias-bg-layer-1,Canvas);color:var(--dsw-alias-label-primary,currentColor);
+  border-radius:6px;background:var(--dsw-alias-bg-layer-1,Canvas);color:var(--dsw-alias-label-primary,currentColor);
   font:500 12.5px/1 var(--dsh-font-family,system-ui,sans-serif);cursor:default;white-space:nowrap}
 .dsh-annotations-card-pill svg{flex:none;color:var(--dsw-alias-label-secondary,currentColor)}
 .dsh-annotations-card-pill:hover,.dsh-annotations-card-pill:focus-visible{background:var(--dsw-alias-bg-layer-2,Canvas);border-color:var(--dsw-alias-border-l2,rgba(127,127,127,.35))}
@@ -86,12 +90,12 @@ window.__ModuleLoader__.load({
 .dsh-annotations-card:has(.dsh-annotations-card-body)::before{content:"";position:absolute;left:0;right:0;bottom:100%;height:8px}
 .dsh-annotations-card[data-annotations-open-below]::before{top:100%;bottom:auto}
 .dsh-annotations-preview{box-sizing:border-box;position:absolute;bottom:calc(100% + 8px);width:min(320px,calc(100vw - 32px));max-height:360px;
-  overflow:auto;display:flex;flex-direction:column;gap:6px;padding:8px;border-radius:10px;
+  overflow:auto;display:flex;flex-direction:column;gap:6px;padding:8px;border-radius:8px;
   background:var(--dsh-surface-raised,Canvas);border:1px solid var(--dsh-border-subtle,rgba(127,127,127,.24));
   color:var(--dsw-alias-label-primary,currentColor);box-shadow:0 8px 24px rgba(0,0,0,.16);font:400 12px/1.45 var(--dsh-font-family,system-ui,sans-serif)}
 .dsh-annotations-card-body{right:0}
 .dsh-annotations-card[data-annotations-open-below] .dsh-annotations-card-body{top:calc(100% + 8px);bottom:auto}
-.dsh-annotations-preview-row{display:flex;flex:none;gap:8px;align-items:flex-start;padding:6px;border-radius:8px}
+.dsh-annotations-preview-row{display:flex;flex:none;gap:8px;align-items:flex-start;padding:6px;border-radius:5px}
 .dsh-annotations-preview-row-editable{cursor:pointer}
 .dsh-annotations-preview-row-editable:hover,.dsh-annotations-preview-row-editable:focus-visible{background:color-mix(in srgb, currentColor 6%, transparent)}
 .dsh-annotations-preview-row-editable:focus-visible{outline:2px solid var(--dsw-alias-brand-primary,#3b82f6);outline-offset:2px}
@@ -101,9 +105,6 @@ window.__ModuleLoader__.load({
 .dsh-annotations-preview-quote,.dsh-annotations-preview-comment{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px}
 .dsh-annotations-preview-quote{opacity:.85}
 .dsh-annotations-preview-comment{opacity:.62}
-.dsh-annotations-preview-row .dsh-annotations-preview-remove{all:unset;flex:none;font-size:11.5px;cursor:pointer;padding:2px 4px;border-radius:5px}
-.dsh-annotations-button-danger,.dsh-annotations-preview-row .dsh-annotations-preview-remove{color:var(--dsw-alias-state-error-primary,#dc2626)}
-.dsh-annotations-preview-row .dsh-annotations-preview-remove:hover,.dsh-annotations-preview-row .dsh-annotations-preview-remove:focus-visible{background:color-mix(in srgb, currentColor 10%, transparent)}
 :is([data-composer-chip="dsh-annotations"],[data-composer-chip="aside-annotations"]){display:inline-block!important;width:0!important;height:0!important;overflow:hidden!important;
   opacity:0!important;pointer-events:none!important;vertical-align:baseline!important}
 ::highlight(${HIGHLIGHT_ALL}){background-color:color-mix(in srgb, #3b82f6 24%, transparent)}
@@ -283,6 +284,20 @@ window.__ModuleLoader__.load({
         placement: fitsAbove ? 'above' : 'below',
         top: clamp(top, bounds.top + 4, maxTop),
         left: clamp(rect.left, bounds.left + 8, Math.max(bounds.left + 8, bounds.right - width - 8)),
+      };
+    }
+
+    function editorSize(bounds) {
+      return {
+        width: Math.min(320, Math.max(40, bounds.right - bounds.left - 16)),
+        height: Math.min(260, Math.max(40, bounds.bottom - bounds.top - 8)),
+      };
+    }
+
+    function placeNearPointer(pointer, size, bounds) {
+      return {
+        top: clamp(pointer.y + 8, bounds.top + 4, Math.max(bounds.top + 4, bounds.bottom - size.height - 4)),
+        left: clamp(pointer.x + 8, bounds.left + 8, Math.max(bounds.left + 8, bounds.right - size.width - 8)),
       };
     }
 
@@ -631,7 +646,13 @@ window.__ModuleLoader__.load({
         h('path', { d: 'M3 3.5h10M3 8h6.5M3 12.5h8' }));
     }
 
-    function AnnotationEditor({ locale, draft, comment, onCommentChange, onSave, onCancel, onRemove }) {
+    function IconTrash() {
+      return h('svg', { viewBox: '0 0 20 20', fill: 'none', stroke: 'currentColor', strokeWidth: 1.7,
+        strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true },
+        h('path', { d: 'M3.5 5.5h13m-10-2h7m-8.5 2 .7 11h8.6l.7-11M8 8.5v5m4-5v5' }));
+    }
+
+    function AnnotationEditor({ locale, draft, comment, limits, onCommentChange, onSave, onCancel, onRemove }) {
       const messages = MESSAGES[locale];
       const areaRef = useRef(null);
       const save = () => onSave(comment.trim() === '' ? undefined : comment.trim());
@@ -641,6 +662,7 @@ window.__ModuleLoader__.load({
       }, []);
       return h('div', {
         className: 'dsh-annotations-editor',
+        style: { maxWidth: limits.width, maxHeight: limits.height },
         role: 'dialog',
         'aria-label': messages.add,
         onKeyDown: (event) => {
@@ -657,7 +679,10 @@ window.__ModuleLoader__.load({
           onChange: event => onCommentChange(event.target.value),
         }),
         h('div', { className: 'dsh-annotations-editor-actions' },
-          onRemove === undefined ? null : h('button', { type: 'button', className: 'dsh-annotations-button dsh-annotations-button-danger', onClick: onRemove }, messages.remove),
+          onRemove === undefined ? null : h('button', {
+            type: 'button', className: 'dsh-annotations-delete', 'aria-label': messages.remove,
+            title: messages.remove, onClick: onRemove,
+          }, h(IconTrash)),
           h('span', { className: 'dsh-annotations-spacer' }),
           h('button', { type: 'button', className: 'dsh-annotations-button', onClick: onCancel }, messages.cancel),
           h('button', { type: 'button', className: 'dsh-annotations-button dsh-annotations-button-primary', onClick: save }, messages.save),
@@ -685,8 +710,10 @@ window.__ModuleLoader__.load({
           annotation.comment === undefined ? null : h('span', { className: 'dsh-annotations-preview-comment', title: annotation.comment }, annotation.comment),
         ),
         onRemove === undefined ? null : h('button', {
-          type: 'button', className: 'dsh-annotations-preview-remove', onClick: event => { event.stopPropagation(); onRemove(index); },
-        }, messages.remove),
+          type: 'button', className: 'dsh-annotations-delete dsh-annotations-preview-remove',
+          'aria-label': messages.remove, title: messages.remove,
+          onClick: event => { event.stopPropagation(); onRemove(index); },
+        }, h(IconTrash)),
       )));
     }
 
@@ -889,11 +916,9 @@ window.__ModuleLoader__.load({
           h('span', { className: 'dsh-annotations-capsule-text' }, `${String(annotations.length)} ${messages.annotations}`),
         ),
         h('button', {
-          type: 'button', className: 'dsh-annotations-close',
+          type: 'button', className: 'dsh-annotations-delete dsh-annotations-close',
           'aria-label': messages.clearAll, title: messages.clearAll, onClick: clear,
-        }, h('svg', { width: 15, height: 15, viewBox: '0 0 20 20', fill: 'none', stroke: 'currentColor',
-          strokeWidth: 1.8, strokeLinecap: 'round', 'aria-hidden': true },
-          h('path', { d: 'M5.5 5.5l9 9m0-9-9 9' }))),
+        }, h(IconTrash)),
         expanded ? h(AnnotationPreview, {
           annotations, locale, className: 'dsh-annotations-list',
           onEdit: (index) => { setExpanded(false); onEdit(index); },
@@ -1110,9 +1135,17 @@ window.__ModuleLoader__.load({
       }, [annotations, access]);
 
       useEffect(() => {
+        let selecting = false;
+        let mousePoint = null;
         const onPointerDown = (event) => {
           const target = event.target;
-          if (target instanceof Element && (target.closest('.dsh-annotations-bar, .dsh-annotations-editor, .dsh-annotations-marker, .dsh-annotations-dock') !== null)) return;
+          const scroll = document.querySelector('[data-conversation-scroll]');
+          selecting = event.pointerType === 'mouse' && event.button === 0 && scroll?.contains(target);
+          mousePoint = null;
+          if (target instanceof Element && (target.closest('.dsh-annotations-bar, .dsh-annotations-editor, .dsh-annotations-marker, .dsh-annotations-dock') !== null)) {
+            selecting = false;
+            return;
+          }
           // ponytail: touches inside the transcript keep the editor; distinguish taps if tap-to-dismiss is needed.
           if (editorRefState.current !== null && target instanceof Element
             && (target.matches('[data-conversation-scroll]')
@@ -1122,14 +1155,18 @@ window.__ModuleLoader__.load({
           setEditor(null);
         };
         const capture = () => {
-          if (editorRefState.current !== null) return;
+          if (editorRefState.current !== null || selecting) return;
           const chat = access.currentChat();
           if (chat === undefined) { setBar(null); return; }
           const value = captureSelection(chat);
           if (value === undefined) { setBar(null); return; }
           const scroll = document.querySelector('[data-conversation-scroll]');
           if (!(scroll instanceof HTMLElement) || !scroll.contains(value.range.commonAncestorContainer)) { setBar(null); return; }
-          const placed = placeInScroll(placeFloating(value.rect, { width: BAR_WIDTH, height: BAR_HEIGHT }, readBounds(scroll)), scroll);
+          const bounds = readBounds(scroll);
+          const size = editorSize(bounds);
+          const placed = placeInScroll(mousePoint === null
+            ? placeFloating(value.rect, size, bounds)
+            : placeNearPointer(mousePoint, size, bounds), scroll);
           const anchor = placeInScroll({ top: value.rect.top, left: value.rect.left }, scroll);
           setBar({ ...value, sessionId: access.currentSessionId(), scroll, placed,
             offset: { top: placed.top - anchor.top, left: placed.left - anchor.left } });
@@ -1157,20 +1194,31 @@ window.__ModuleLoader__.load({
           if (line === undefined) return;
           selection.removeAllRanges();
           selection.addRange(line);
+          mousePoint = { x: event.clientX, y: event.clientY };
+          selecting = false;
           window.clearTimeout(timer);
           timer = window.setTimeout(capture, 0);
         };
+        const onPointerUp = (event) => {
+          mousePoint = selecting && event.pointerType === 'mouse' ? { x: event.clientX, y: event.clientY } : null;
+          selecting = false;
+          schedule();
+        };
+        const onKeyUp = () => { mousePoint = null; schedule(); };
+        const onPointerCancel = () => { selecting = false; mousePoint = null; };
         document.addEventListener('pointerdown', onDown, true);
         document.addEventListener('dblclick', onDoubleClick, true);
-        document.addEventListener('pointerup', schedule, true);
-        document.addEventListener('keyup', schedule, true);
+        document.addEventListener('pointerup', onPointerUp, true);
+        document.addEventListener('pointercancel', onPointerCancel, true);
+        document.addEventListener('keyup', onKeyUp, true);
         document.addEventListener('selectionchange', schedule);
         return () => {
           window.clearTimeout(timer);
           document.removeEventListener('pointerdown', onDown, true);
           document.removeEventListener('dblclick', onDoubleClick, true);
-          document.removeEventListener('pointerup', schedule, true);
-          document.removeEventListener('keyup', schedule, true);
+          document.removeEventListener('pointerup', onPointerUp, true);
+          document.removeEventListener('pointercancel', onPointerCancel, true);
+          document.removeEventListener('keyup', onKeyUp, true);
           document.removeEventListener('selectionchange', schedule);
         };
       }, [access]);
@@ -1178,6 +1226,10 @@ window.__ModuleLoader__.load({
       useLayoutEffect(() => {
         const box = editorBoxRef.current;
         if (box === null || editor === null) return;
+        if (editor.seed.barPlaced !== undefined && editorScroll !== undefined) {
+          editorOffsetRef.current = editor.seed.barOffset;
+          return;
+        }
         const rect = (editorScroll === undefined ? undefined : editor.seed.range?.getBoundingClientRect()) ?? editor.seed.rect ?? bar?.rect;
         if (rect === undefined) return;
         const placed = positionFloatingBox(box, rect, editorScroll);
@@ -1191,9 +1243,9 @@ window.__ModuleLoader__.load({
         const scroll = seed?.scroll;
         const bounds = readBounds(scroll);
         const rect = seed !== undefined && seed.rect !== undefined ? seed.rect : bars?.rect ?? { top: bounds.top + 80, bottom: bounds.top + 80, left: 24, right: 24 };
-        const placed = placeFloating(rect, { width: 320, height: 150 }, bounds);
+        const placed = seed.barPlaced === undefined ? placeFloating(rect, editorSize(bounds), bounds) : undefined;
         setComment(seed.comment ?? '');
-        setEditor({ seed, scroll, placed: scroll === undefined ? placed : placeInScroll(placed, scroll) });
+        setEditor({ seed, scroll, placed: seed.barPlaced ?? (scroll === undefined ? placed : placeInScroll(placed, scroll)) });
         setBar(null);
       };
       const openAnnotation = (index, fromComposer = false) => {
@@ -1304,6 +1356,7 @@ window.__ModuleLoader__.load({
         h(AnnotationEditor, {
           locale,
           draft: editor.seed.text,
+          limits: editorSize(readBounds(editorScroll)),
           comment,
           onCommentChange: setComment,
           onSave: save,
@@ -1320,7 +1373,7 @@ window.__ModuleLoader__.load({
           style: { top: `${String(bar.placed.top)}px`, left: `${String(bar.placed.left)}px` },
           onMouseDown: event => event.preventDefault(),
         },
-          h('button', { type: 'button', onClick: () => openEditor({ text: bar.text, anchor: bar.anchor, sessionId: bar.sessionId, range: bar.range, rect: bar.rect, scroll: bar.scroll }) },
+          h('button', { type: 'button', onClick: () => openEditor({ text: bar.text, anchor: bar.anchor, sessionId: bar.sessionId, range: bar.range, rect: bar.rect, scroll: bar.scroll, barPlaced: bar.placed, barOffset: bar.offset }) },
             h(IconQuote), messages.add),
         ), bar.scroll),
         editorScroll === undefined ? floatingEditor : createPortal(floatingEditor, editorScroll),
@@ -1414,6 +1467,8 @@ window.__ModuleLoader__.load({
         readAnnotations,
         writeAnnotations,
         placeFloating,
+        editorSize,
+        placeNearPointer,
         scrollAnnotationIntoView,
         readBounds,
         placeInScroll,

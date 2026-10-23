@@ -248,6 +248,25 @@ test('the toolbar prefers above, flips below, and stays inside the viewport', ()
   assert.equal(editor.top, 300 - 150 - 18);
 });
 
+test('mouse release places the toolbar and its editor together inside the transcript', () => {
+  const bounds = { top: 100, bottom: 700, left: 0, right: 800 };
+  const size = api.editorSize(bounds);
+  assert.deepEqual(size, { width: 320, height: 260 });
+  assert.deepEqual(api.placeNearPointer({ x: 100, y: 180 }, size, bounds), { top: 188, left: 108 });
+  assert.deepEqual(api.placeNearPointer({ x: 790, y: 690 }, size, bounds), { top: 436, left: 472 });
+  const narrow = { top: 100, bottom: 310, left: 100, right: 390 };
+  assert.deepEqual(api.editorSize(narrow), { width: 274, height: 202 });
+  assert.deepEqual(api.placeNearPointer({ x: 380, y: 300 }, api.editorSize(narrow), narrow), { top: 104, left: 108 });
+  const overlay = source.split('function AnnotationOverlay(')[1].split('function focusComposer(')[0];
+  assert.match(overlay, /if \(editorRefState.current !== null \|\| selecting\) return/);
+  assert.match(overlay, /mousePoint = selecting && event.pointerType === 'mouse'/);
+  assert.match(overlay, /barPlaced: bar.placed, barOffset: bar.offset/);
+  assert.match(overlay, /editor.seed.barPlaced !== undefined && editorScroll !== undefined/);
+  assert.match(overlay, /limits: editorSize\(readBounds\(editorScroll\)\)/);
+  assert.match(source, /style: \{ maxWidth: limits.width, maxHeight: limits.height \}/);
+  assert.match(source, /areaRef.current\?\.focus\(\)/);
+});
+
 test('badge uses scroll-content coordinates inside the scrollport', () => {
   const scroll = {
     getBoundingClientRect: () => ({ top: 80, left: 100 }),
@@ -304,9 +323,10 @@ test('composer annotation preview opens on hover without click-to-toggle', () =>
   assert.match(dock, /className: 'dsh-annotations-capsule-text'/);
   assert.match(dock, /h\('path', \{ d: 'M5 3\.75h10/);
   assert.match(source, /\.dsh-annotations-dock:hover \.dsh-annotations-capsule-text,[^}]+mask-image:linear-gradient\(to right,#000 calc\(100% - 40px\),transparent calc\(100% - 14px\)\)/);
-  assert.match(source, /\.dsh-annotations-close\{position:absolute;z-index:1;top:3px;right:7px;[^}]+width:24px;height:24px;[^}]+border-radius:50%/);
+  assert.match(source, /\.dsh-annotations-delete\{[^}]+border-radius:5px/);
+  assert.match(source, /\.dsh-annotations-close\{position:absolute;z-index:1;top:3px;right:7px;width:24px;height:24px/);
+  assert.match(dock, /className: 'dsh-annotations-delete dsh-annotations-close'/);
   assert.doesNotMatch(source, /dsh-annotations-capsule-count|padding:0 31px/);
-  assert.match(dock, /className: 'dsh-annotations-close'/);
   assert.match(dock, /onClick: clear/);
   assert.doesNotMatch(dock, /expanded \? '▾' : '▸'/);
 });
@@ -353,6 +373,22 @@ test('composer and sent annotations share one hover preview layout', () => {
   assert.doesNotMatch(preview, /messages.quote|messages.commentLabel|blockquote/);
   assert.match(dock, /window.innerWidth - 16 - dockRef.current.getBoundingClientRect\(\).left - list.offsetWidth/);
   assert.match(preview, /onRemove === undefined \? null/);
+});
+
+test('all annotation delete controls share a labeled icon and compact radii', () => {
+  const editor = source.split('function AnnotationEditor(')[1].split('function AnnotationPreview(')[0];
+  const preview = source.split('function AnnotationPreview(')[1].split('function placeDock(')[0];
+  const dock = source.split('function AnnotationDock(')[1].split('function AnnotationMessages(')[0];
+  for (const section of [editor, preview, dock]) assert.match(section, /h\(IconTrash\)/);
+  assert.match(editor, /'aria-label': messages.remove/);
+  assert.match(preview, /'aria-label': messages.remove/);
+  assert.match(dock, /'aria-label': messages.clearAll/);
+  assert.match(editor, /className: 'dsh-annotations-editor-quote'/);
+  assert.match(editor, /draft.slice\(0, 300\)/);
+  assert.match(editor, /messages.cancel/);
+  assert.match(editor, /dsh-annotations-button dsh-annotations-button-primary/);
+  assert.doesNotMatch(editor, /IconSend|dsh-annotations-editor-submit/);
+  assert.doesNotMatch(source, /border-radius:(?:99px|50%|12px)/);
 });
 
 test('preview shows full quote and comment within one scrollable height limit', () => {
