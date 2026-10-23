@@ -80,14 +80,13 @@ window.__ModuleLoader__.load({
     const MAX_SELECTION_CHARS = 16384;
     const HIGHLIGHT_ALL = 'dsh-aside-annotation';
     const HIGHLIGHT_ACTIVE = 'dsh-aside-active';
-    const GAP = 8;
-    const EDITOR_GAP = 18;
+    const GAP = 18;
     const MARKER_SIZE = 18;
     const BAR_HEIGHT = 36;
     const BAR_WIDTH = 320;
 
     const STYLES = `
-.dsh-aside-bar{position:fixed;z-index:80;display:flex;align-items:center;gap:2px;height:${BAR_HEIGHT}px;padding:3px;border-radius:10px;
+.dsh-aside-bar{box-sizing:border-box;position:fixed;z-index:80;display:flex;align-items:center;gap:2px;height:${BAR_HEIGHT}px;padding:3px;border-radius:10px;
   background:var(--dsh-surface-raised,color-mix(in srgb, Canvas 92%, CanvasText 8%));color:inherit;
   border:1px solid var(--dsh-border-subtle,rgba(127,127,127,.28));box-shadow:0 8px 24px rgba(0,0,0,.16);
   font:500 12.5px/1.2 var(--dsh-font-family,system-ui,sans-serif);white-space:nowrap}
@@ -114,7 +113,13 @@ window.__ModuleLoader__.load({
   background:var(--dsh-accent,#3b82f6);color:#fff;font:600 10.5px/1 var(--dsh-font-family,system-ui,sans-serif);
   cursor:pointer;border:none;box-shadow:0 2px 6px rgba(0,0,0,.2);padding:0}
 .dsh-aside-marker:focus-visible{outline:2px solid color-mix(in srgb, var(--dsh-accent,#3b82f6) 45%, #fff);outline-offset:1px}
-.dsh-aside-dock{display:flex;flex-direction:column;gap:6px;margin:0 0 6px}
+body:has(.dsh-aside-dock-editor) .dsh-aside-marker{visibility:hidden}
+.dsh-aside-dock{position:absolute;top:8px;left:14px;z-index:3;display:flex;flex-direction:column;gap:6px;max-width:calc(100% - 28px)}
+.dsh-aside-dock-editor{position:absolute;top:44px;left:14px;z-index:4}
+[data-composer-seat]:has(.dsh-aside-dock) [data-composer-input]{padding-top:39px}
+[data-composer-seat]:has(.dsh-aside-dock) [data-composer-placeholder]{transform:translateY(35px)}
+[data-composer-seat]:has(.dsh-aside-dock-editor) [data-composer-input]{padding-top:calc(var(--dsh-aside-editor-height, 177px) + 53px)}
+[data-composer-seat]:has(.dsh-aside-dock-editor) [data-composer-placeholder]{transform:translateY(calc(var(--dsh-aside-editor-height, 177px) + 49px))}
 .dsh-aside-capsule{display:inline-flex;align-items:center;gap:8px;height:30px;max-width:100%;width:fit-content;padding:0 10px;
   border-radius:9px;cursor:pointer;font:500 12.5px/1 var(--dsh-font-family,system-ui,sans-serif);color:inherit;
   background:color-mix(in srgb, var(--dsh-accent,#3b82f6) 12%, transparent);
@@ -122,9 +127,9 @@ window.__ModuleLoader__.load({
 .dsh-aside-capsule:hover{background:color-mix(in srgb, var(--dsh-accent,#3b82f6) 18%, transparent)}
 .dsh-aside-capsule-count{display:grid;place-items:center;min-width:18px;height:18px;padding:0 4px;border-radius:99px;
   background:var(--dsh-accent,#3b82f6);color:#fff;font-size:10.5px;font-weight:600}
-.dsh-aside-list{display:flex;flex-direction:column;gap:6px;max-height:240px;overflow:auto;
-  padding:8px;border-radius:10px;background:color-mix(in srgb, currentColor 4%, transparent);
-  border:1px solid var(--dsh-border-subtle,rgba(127,127,127,.24))}
+.dsh-aside-list{position:absolute;bottom:calc(100% + 8px);left:0;width:320px;display:flex;flex-direction:column;gap:6px;max-height:240px;overflow:auto;
+  padding:8px;border-radius:10px;background:var(--dsh-surface-raised,Canvas);
+  border:1px solid var(--dsh-border-subtle,rgba(127,127,127,.24));box-shadow:0 8px 24px rgba(0,0,0,.16)}
 .dsh-aside-list-row{display:flex;gap:8px;align-items:flex-start;padding:6px;border-radius:8px;cursor:pointer}
 .dsh-aside-list-row:hover{background:color-mix(in srgb, currentColor 6%, transparent)}
 .dsh-aside-list-row .dsh-aside-list-index{display:grid;place-items:center;width:18px;height:18px;border-radius:99px;flex:none;
@@ -345,16 +350,23 @@ window.__ModuleLoader__.load({
     }
 
     /** Place a floating control above the selection, or below when there is no room. */
-    function placeFloating(rect, size, bounds, gap = GAP) {
+    function placeFloating(rect, size, bounds) {
       const width = size.width ?? 0;
       const height = size.height ?? BAR_HEIGHT;
-      const fitsAbove = rect.top - height - gap >= bounds.top + 4;
-      const top = fitsAbove ? rect.top - height - gap : rect.bottom + gap;
+      const fitsAbove = rect.top - height - GAP >= bounds.top + 4;
+      const top = fitsAbove ? rect.top - height - GAP : rect.bottom + GAP;
       const maxTop = Math.max(bounds.top + 4, bounds.bottom - height - 4);
       return {
         placement: fitsAbove ? 'above' : 'below',
         top: clamp(top, bounds.top + 4, maxTop),
         left: clamp(rect.left, bounds.left + 8, Math.max(bounds.left + 8, bounds.right - width - 8)),
+      };
+    }
+
+    function placeMarker(last, viewport) {
+      return {
+        top: clamp(last.top - MARKER_SIZE - 4, 0, viewport.height - MARKER_SIZE),
+        left: clamp(last.right + 4, 0, viewport.width - MARKER_SIZE - 4),
       };
     }
 
@@ -710,8 +722,8 @@ window.__ModuleLoader__.load({
           key: `aside-${String(index)}`,
           role: 'listitem',
           className: 'dsh-aside-list-row',
-          onClick: () => onEdit(index),
-          onKeyDown: (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onEdit(index); } },
+          onClick: () => { setExpanded(false); onEdit(index); },
+          onKeyDown: (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setExpanded(false); onEdit(index); } },
           tabIndex: 0,
         },
           h('span', { className: 'dsh-aside-list-index' }, String(index + 1)),
@@ -954,15 +966,8 @@ window.__ModuleLoader__.load({
           highlightRanges.push(range);
           const rects = [...range.getClientRects()].filter(rect => rect.height > 0);
           if (rects.length === 0) return;
-          const first = rects[0];
-          const block = found.host.getBoundingClientRect();
-          // ponytail: gutter badge — the block's own right edge, not the
-          // selection end, so a mid-line selection never covers its text.
-          next.push({
-            index,
-            top: clamp(first.top + (first.height - MARKER_SIZE) / 2, 0, window.innerHeight - MARKER_SIZE),
-            left: clamp(block.right + 8, 0, window.innerWidth - MARKER_SIZE - 4),
-          });
+          const last = rects[rects.length - 1];
+          next.push({ index, ...placeMarker(last, { width: window.innerWidth, height: window.innerHeight }) });
         });
         if (typeof CSS !== 'undefined' && CSS.highlights !== undefined && typeof Highlight !== 'undefined') {
           CSS.highlights.set(HIGHLIGHT_ALL, new Highlight(...highlightRanges));
@@ -1055,7 +1060,8 @@ window.__ModuleLoader__.load({
         if (box === null || editor === null) return;
         const rect = editor.seed.rect ?? bar?.rect;
         if (rect === undefined) return;
-        const placed = placeFloating(rect, { width: box.offsetWidth, height: box.offsetHeight }, readBounds(), EDITOR_GAP);
+        const { width, height } = box.getBoundingClientRect();
+        const placed = placeFloating(rect, { width, height }, readBounds());
         box.style.top = `${String(placed.top)}px`;
         box.style.left = `${String(placed.left)}px`;
       }, [editor]);
@@ -1064,7 +1070,7 @@ window.__ModuleLoader__.load({
         const bars = bar;
         const bounds = readBounds();
         const rect = seed !== undefined && seed.rect !== undefined ? seed.rect : bars?.rect ?? { top: bounds.top + 80, bottom: bounds.top + 80, left: 24, right: 24 };
-        const placed = placeFloating(rect, { width: 320, height: 150 }, bounds, EDITOR_GAP);
+        const placed = placeFloating(rect, { width: 320, height: 150 }, bounds);
         setEditor({ seed, placed: { top: placed.top, left: placed.left } });
         setBar(null);
       };
@@ -1243,8 +1249,8 @@ window.__ModuleLoader__.load({
 
       const slots = ctx.slots;
 
-      ctx.effect(() => slots.inject('conversation.input.dock', () => slots.register({
-        name: 'conversation.input.dock',
+      ctx.effect(() => slots.inject('conversation.input.overlay', () => slots.register({
+        name: 'conversation.input.overlay',
         id: 'dsh-aside-dock',
         order: 40,
       }, () => h(AsideDockHost, { access, locale }))), 'dsh-aside.dock');
@@ -1329,9 +1335,20 @@ window.__ModuleLoader__.load({
       const annotations = useAnnotations(access);
       const [editIndex, setEditIndex] = useState(undefined);
       const editing = editIndex === undefined ? undefined : annotations[editIndex];
+      const editorRef = useRef(null);
       useEffect(() => {
         if (editIndex !== undefined && editing === undefined) setEditIndex(undefined);
       }, [editIndex, editing]);
+      useEffect(() => {
+        const node = editorRef.current;
+        const seat = node?.closest('[data-composer-seat]');
+        if (node === null || seat === null) return;
+        const resize = () => seat.style.setProperty('--dsh-aside-editor-height', `${node.offsetHeight}px`);
+        const observer = new ResizeObserver(resize);
+        observer.observe(node);
+        resize();
+        return () => { observer.disconnect(); seat.style.removeProperty('--dsh-aside-editor-height'); };
+      }, [editing !== undefined]);
       const apply = (mutate) => {
         const input = access.currentInput();
         if (input === undefined) return;
@@ -1340,7 +1357,7 @@ window.__ModuleLoader__.load({
         focusComposer();
       };
       return h(React.Fragment, null,
-        editing === undefined ? null : h('div', { className: 'dsh-aside-dock', 'data-aside-skip': '' },
+        editing === undefined ? null : h('div', { ref: editorRef, className: 'dsh-aside-dock-editor', 'data-aside-skip': '' },
           h(AnnotationEditor, {
             locale,
             draft: editing.text,
@@ -1371,6 +1388,7 @@ window.__ModuleLoader__.load({
         readAnnotations,
         writeAnnotations,
         placeFloating,
+        placeMarker,
         clamp,
       },
     };

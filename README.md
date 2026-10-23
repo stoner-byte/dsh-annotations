@@ -10,7 +10,7 @@ DeepSeek Harness 插件。选中会话文字，加旁注，或开临时侧边讨
 - 添加到对话
 - 在侧边聊天中提问
 
-工具条位置优先在选区上方。上方空间不够时翻到下方。始终夹在会话滚动区与输入框之间。
+工具条和编辑器都距选区 18px。上方空间不够时翻到下方，始终夹在会话滚动区与输入框之间。
 
 **双击一行** → 选中该行文字并弹出工具条。双击一个词仍按浏览器原生选词。双击行尾空白也选中整行。
 
@@ -18,8 +18,8 @@ DeepSeek Harness 插件。选中会话文字，加旁注，或开临时侧边讨
 保存后：
 
 - 草稿里插入一个引用芯片。芯片被 CSS 压成 0 尺寸，草稿文字不受影响。
-- 输入框上方出现胶囊「N 条注释」。点击展开列表，可编辑或删除。
-- 原文选区高亮，选区所在块的右上角（正文右侧）显示编号徽标。点徽标回到编辑器。
+- 会话输入框内部出现胶囊「N 条注释」，输入文字留在胶囊下方。点击展开列表，可编辑或删除。
+- 原文选区高亮，编号徽标始终跟在所选文字末端上方。点徽标回到编辑器。
 
 输入框为空时也显示胶囊。胶囊和芯片同为注释来源；芯片是唯一持久数据。
 
@@ -53,7 +53,7 @@ Client 半边（`client.js`，无构建步骤，`window.__ModuleLoader__.load`�
 
 - **选区**：单条消息、可见、已结算、≤16KB。存 `nodeKey`、文本起止偏移、`seq`。任一条件不满足就不弹工具条（fail-closed）。
 - **工具条 / 编辑器**：`shell.overlay`，fixed 定位，rAF 节流。
-- **胶囊**：`conversation.input.dock`，order 40（Todo 0、Goal 10、Queue 20 之后）。计数从芯片 `ref` 反解，不另存状态。
+- **胶囊**：`conversation.input.overlay`，order 40，显示在输入框卡片内；编辑时按实际高度为输入文字留出空间。计数从芯片 `ref` 反解，不另存状态。
 - **引用芯片**：`inputTriggers.registerSource` 注册 source `aside-annotations`。
   - `ref` = JSON：`{version, sessionId, annotations:[{text, comment?, anchor?}]}`。
   - `clipboardText` 只做草稿占位。
@@ -64,7 +64,7 @@ Client 半边（`client.js`，无构建步骤，`window.__ModuleLoader__.load`�
 
 注释持久化：不另存。草稿本身由 DSH 存到 localStorage，芯片 `ref` 随草稿走。
 
-## 安装（未执行）
+## 安装
 
 ```sh
 cd ~/code/dsh-aside

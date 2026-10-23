@@ -87,17 +87,21 @@ test('the toolbar prefers above, flips below, and stays inside the viewport', ()
   const bounds = { top: 100, bottom: 700, left: 0, right: 800 };
   const above = api.placeFloating({ top: 300, bottom: 320, left: 40, right: 200 }, { width: 320, height: 36 }, bounds);
   assert.equal(above.placement, 'above');
-  assert.equal(above.top, 300 - 36 - 8);
+  assert.equal(above.top, 300 - 36 - 18);
   assert.equal(above.left, 40);
 
   const below = api.placeFloating({ top: 110, bottom: 130, left: 40, right: 200 }, { width: 320, height: 36 }, bounds);
   assert.equal(below.placement, 'below');
-  assert.equal(below.top, 138);
+  assert.equal(below.top, 148);
 
   const right = api.placeFloating({ top: 300, bottom: 320, left: 790, right: 800 }, { width: 320, height: 36 }, bounds);
   assert.equal(right.left, 800 - 320 - 8);
 
-  // The editor asks for a wider gap than the toolbar.
-  const wide = api.placeFloating({ top: 300, bottom: 320, left: 40, right: 200 }, { width: 320, height: 150 }, bounds, 18);
-  assert.equal(wide.top, 300 - 150 - 18);
+  const editor = api.placeFloating({ top: 300, bottom: 320, left: 40, right: 200 }, { width: 320, height: 150 }, bounds);
+  assert.equal(editor.top, 300 - 150 - 18);
+});
+
+test('badge sits above the end of selected text', () => {
+  assert.deepEqual(api.placeMarker({ top: 335, right: 739 }, { width: 1280, height: 577 }),
+    { top: 313, left: 743 });
 });
