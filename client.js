@@ -115,9 +115,11 @@ window.__ModuleLoader__.load({
 .dsh-aside-marker:focus-visible{outline:2px solid color-mix(in srgb, var(--dsh-accent,#3b82f6) 45%, #fff);outline-offset:1px}
 body:has(.dsh-aside-dock-editor) .dsh-aside-marker{visibility:hidden}
 .dsh-aside-dock{position:absolute;top:8px;left:14px;z-index:3;display:flex;flex-direction:column;gap:6px;max-width:calc(100% - 28px)}
-.dsh-aside-dock-editor{position:absolute;top:44px;left:14px;z-index:4}
+.dsh-aside-dock-editor{position:absolute;top:var(--dsh-aside-editor-top,44px);left:14px;z-index:4}
 [data-composer-seat]:has(.dsh-aside-dock) [data-composer-input]{padding-top:39px}
 [data-composer-seat]:has(.dsh-aside-dock) [data-composer-placeholder]{transform:translateY(35px)}
+[data-composer-seat]:has(.dsh-aside-dock[data-aside-inline]):not(:has(.dsh-aside-dock-editor)) [data-composer-input]{padding-top:0}
+[data-composer-seat]:has(.dsh-aside-dock[data-aside-inline]):not(:has(.dsh-aside-dock-editor)) [data-composer-placeholder]{transform:none}
 [data-composer-seat]:has(.dsh-aside-dock-editor) [data-composer-input]{padding-top:calc(var(--dsh-aside-editor-height, 177px) + 53px)}
 [data-composer-seat]:has(.dsh-aside-dock-editor) [data-composer-placeholder]{transform:translateY(calc(var(--dsh-aside-editor-height, 177px) + 49px))}
 .dsh-aside-capsule{display:inline-flex;align-items:center;gap:8px;height:30px;max-width:100%;width:fit-content;padding:0 10px;
@@ -127,6 +129,7 @@ body:has(.dsh-aside-dock-editor) .dsh-aside-marker{visibility:hidden}
 .dsh-aside-capsule:hover{background:color-mix(in srgb, var(--dsh-accent,#3b82f6) 18%, transparent)}
 .dsh-aside-capsule-count{display:grid;place-items:center;min-width:18px;height:18px;padding:0 4px;border-radius:99px;
   background:var(--dsh-accent,#3b82f6);color:#fff;font-size:10.5px;font-weight:600}
+.dsh-aside-dock:has(.dsh-aside-list)::before{content:"";position:absolute;left:0;right:0;bottom:100%;height:8px}
 .dsh-aside-list{position:absolute;bottom:calc(100% + 8px);left:0;width:320px;display:flex;flex-direction:column;gap:6px;max-height:240px;overflow:auto;
   padding:8px;border-radius:10px;background:var(--dsh-surface-raised,Canvas);
   border:1px solid var(--dsh-border-subtle,rgba(127,127,127,.24));box-shadow:0 8px 24px rgba(0,0,0,.16)}
@@ -693,13 +696,56 @@ body:has(.dsh-aside-dock-editor) .dsh-aside-marker{visibility:hidden}
       );
     }
 
+    function placeDock(card, rail, last, dock, gap = 10) {
+      if (last === undefined) return { left: 14, top: 8, editorTop: 44, inline: false };
+      const left = last.right - card.left + gap;
+      const inline = last.width > 0 && left + dock.width + 14 <= Math.min(card.right, rail.right) - card.left;
+      const railBottom = rail.bottom - card.top;
+      return {
+        left: inline ? left : 14,
+        top: inline ? last.bottom - card.top - dock.height : railBottom + 8,
+        editorTop: railBottom + (inline ? 8 : 44),
+        inline,
+      };
+    }
+
     function AsideDock({ access, locale, onEdit }) {
       const messages = MESSAGES[locale];
       const annotations = useAnnotations(access);
       const [expanded, setExpanded] = useState(false);
+      const dockRef = useRef(null);
       useEffect(() => {
         if (annotations.length === 0 && expanded) setExpanded(false);
       }, [annotations.length, expanded]);
+      useEffect(() => {
+        const dock = dockRef.current;
+        const seat = dock?.closest('[data-composer-seat]');
+        const card = seat?.querySelector('[data-composer-card]');
+        const attachments = seat?.querySelector('[data-slot="conversation.input.attachments"]');
+        if (!dock || !card || !attachments) return;
+        const place = () => {
+          const rail = attachments.querySelector('[role="group"]');
+          const position = placeDock(card.getBoundingClientRect(), rail?.getBoundingClientRect(),
+            rail?.lastElementChild?.getBoundingClientRect(), dock.getBoundingClientRect(),
+            rail === null ? 10 : Number.parseFloat(getComputedStyle(rail).columnGap) || 10);
+          dock.style.left = `${String(position.left)}px`;
+          dock.style.top = `${String(position.top)}px`;
+          dock.toggleAttribute('data-aside-inline', position.inline);
+          seat.style.setProperty('--dsh-aside-editor-top', `${String(position.editorTop)}px`);
+        };
+        const mutation = new MutationObserver(place);
+        mutation.observe(attachments, { childList: true, subtree: true });
+        const resize = new ResizeObserver(place);
+        resize.observe(card);
+        attachments.addEventListener('scroll', place, true);
+        place();
+        return () => {
+          mutation.disconnect();
+          resize.disconnect();
+          attachments.removeEventListener('scroll', place, true);
+          seat.style.removeProperty('--dsh-aside-editor-top');
+        };
+      }, [annotations.length]);
       if (annotations.length === 0) return null;
       const remove = (index) => {
         const input = access.currentInput();
@@ -707,12 +753,17 @@ body:has(.dsh-aside-dock-editor) .dsh-aside-marker{visibility:hidden}
         const next = access.currentAnnotations().filter((_, position) => position !== index);
         writeAnnotations(input, next);
       };
-      return h('div', { className: 'dsh-aside-dock', 'data-aside-skip': '' },
+      return h('div', {
+        ref: dockRef, className: 'dsh-aside-dock', 'data-aside-skip': '',
+        onMouseEnter: () => setExpanded(true),
+        onMouseLeave: () => setExpanded(false),
+        onFocus: () => setExpanded(true),
+        onBlur: event => { if (!event.currentTarget.contains(event.relatedTarget)) setExpanded(false); },
+      },
         h('button', {
           type: 'button',
           className: 'dsh-aside-capsule',
           'aria-expanded': expanded,
-          onClick: () => setExpanded(value => !value),
         },
           h('span', { className: 'dsh-aside-capsule-count' }, String(annotations.length)),
           h('span', null, `${String(annotations.length)} ${messages.annotations}`),
@@ -1389,6 +1440,7 @@ body:has(.dsh-aside-dock-editor) .dsh-aside-marker{visibility:hidden}
         writeAnnotations,
         placeFloating,
         placeMarker,
+        placeDock,
         clamp,
       },
     };

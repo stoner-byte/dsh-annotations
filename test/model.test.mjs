@@ -105,3 +105,23 @@ test('badge sits above the end of selected text', () => {
   assert.deepEqual(api.placeMarker({ top: 335, right: 739 }, { width: 1280, height: 577 }),
     { top: 313, left: 743 });
 });
+
+test('composer annotation preview opens on hover without click-to-toggle', () => {
+  const dock = source.split('function AsideDock(')[1].split('function AsideMessages(')[0];
+  assert.match(dock, /onMouseEnter: \(\) => setExpanded\(true\)/);
+  assert.match(dock, /onMouseLeave: \(\) => setExpanded\(false\)/);
+  assert.doesNotMatch(dock.split("className: 'dsh-aside-capsule'")[1].split("h('span'")[0], /onClick/);
+});
+
+test('composer annotation sits beside an image or below a crowded attachment rail', () => {
+  const card = { left: 100, top: 100, right: 500 };
+  const rail = { right: 500, bottom: 230 };
+  const image = { right: 184, bottom: 230, width: 64 };
+  const dock = { width: 140, height: 30 };
+  assert.deepEqual(api.placeDock(card, rail, image, dock),
+    { left: 94, top: 100, editorTop: 138, inline: true });
+  assert.deepEqual(api.placeDock({ ...card, right: 280 }, { ...rail, right: 280 }, image, dock),
+    { left: 14, top: 138, editorTop: 174, inline: false });
+  assert.deepEqual(api.placeDock(card, undefined, undefined, dock),
+    { left: 14, top: 8, editorTop: 44, inline: false });
+});
