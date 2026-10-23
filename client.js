@@ -110,7 +110,7 @@ window.__ModuleLoader__.load({
 .dsh-aside-button-primary{background:var(--dsh-accent,#3b82f6);color:#fff}
 .dsh-aside-button-primary:hover{background:color-mix(in srgb, var(--dsh-accent,#3b82f6) 88%, #fff)}
 .dsh-aside-button-danger{color:#dc2626}
-.dsh-aside-marker{position:absolute;z-index:70;display:grid;place-items:center;width:18px;height:18px;border-radius:99px;
+.dsh-aside-marker{position:absolute;z-index:5;display:grid;place-items:center;width:18px;height:18px;border-radius:99px;
   background:var(--dsh-accent,#3b82f6);color:#fff;font:600 10.5px/1 var(--dsh-font-family,system-ui,sans-serif);
   cursor:pointer;border:none;box-shadow:0 2px 6px rgba(0,0,0,.2);padding:0}
 .dsh-aside-marker:focus-visible{outline:2px solid color-mix(in srgb, var(--dsh-accent,#3b82f6) 45%, #fff);outline-offset:1px}
