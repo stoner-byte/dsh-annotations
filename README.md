@@ -68,19 +68,20 @@ Client 半边（`client.js`，无构建步骤，`window.__ModuleLoader__.load`�
 
 ```sh
 cd ~/code/dsh-aside
-pnpm install
+npm run test:install
+npm pack
 ```
 
-然后在 DSH 里安装本目录（`plugin_manager install_bundle`，target 为本目录）。
-要求 DSH `0.2.1-rc.2`，profile `desktop`。
+`test:install` 会将生成的 `.tgz` 安装到隔离 profile 并启动检查。安装时使用打包文件或 GitHub 包，不要把仓库目录作为安装源：目录安装产生 link，宿主端无法解析 `zod`。要求 DSH `0.2.1-rc.2`。
 
 ## 测试
 
 ```sh
 npm test
+npm run test:install
 ```
 
-`node --test`，无框架。覆盖：XML 序列化/解析往返、转义、芯片原子 span 换算（含多引用）、注释反解、工具条定位（上方 / 翻下 / 夹边）、Client/Host 线上方法名一致。
+`npm test` 检查纯逻辑与 Client/Host 线上方法名。`test:install` 在 `/tmp` 创建独立 profile，将当前源码打包安装，检查首次启动与冷重启；不修改 desktop profile。
 
 文本框为空时“保存”也可用，此时只收集所选文本，不带评论。
 

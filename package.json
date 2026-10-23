@@ -20,7 +20,8 @@
     "README.md"
   ],
   "scripts": {
-    "test": "node --test test/model.test.mjs"
+    "test": "node --test test/model.test.mjs",
+    "test:install": "bash test/install-smoke.sh"
   },
   "dsh": {
     "bundle": { "patch": "./cordis.patch.yml" },
