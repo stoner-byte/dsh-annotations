@@ -370,7 +370,7 @@ test('composer and sent annotations share one hover preview layout', () => {
   assert.match(sent, /h\(AnnotationPreview, \{ annotations, locale, className: 'dsh-annotations-card-body' \}\)/);
   assert.match(source, /\.dsh-annotations-preview\{[^}]*width:min\(320px,calc\(100vw - 32px\)\)/);
   assert.match(source, /\.dsh-annotations-dock:has\(\.dsh-annotations-list\),\.dsh-annotations-card:has\(\.dsh-annotations-card-body\)\{z-index:6\}/);
-  assert.match(source, /\.dsh-annotations-preview\{[^}]*background:var\(--dsw-alias-bg-overlay,Canvas\)/);
+  assert.match(source, /\.dsh-annotations-preview\{[^}]*background:var\(--dsw-alias-bg-layer-1,Canvas\)/);
   assert.match(source, /\.dsh-annotations-preview-index\{[^}]*color:var\(--dsw-alias-label-secondary,currentColor\)/);
   assert.doesNotMatch(source, /\.dsh-annotations-preview-index\{[^}]*background:/);
   assert.ok(preview.includes("h('span', { className: 'dsh-annotations-preview-index' }, `${String(index + 1)}.`)"));
@@ -401,7 +401,7 @@ test('annotation surfaces, actions, and highlights follow DSH theme tokens', () 
   const css = source.split('const STYLES = `')[1].split('`;')[0];
   for (const name of ['bar', 'editor', 'preview']) {
     const block = css.split(`.dsh-annotations-${name}{`)[1].split('\n.')[0];
-    assert.match(block, /background:var\(--dsw-alias-bg-overlay,Canvas\)/);
+    assert.match(block, /background:var\(--dsw-alias-bg-layer-1,Canvas\)/);
   }
   assert.match(css, /\.dsh-annotations-button-primary\{background:var\(--dsw-alias-brand-primary,Highlight\)/);
   assert.match(css, /\.dsh-annotations-marker\{[^}]*background:var\(--dsw-alias-brand-primary,Highlight\)/);
