@@ -303,8 +303,8 @@ test('composer annotation preview opens on hover without click-to-toggle', () =>
   assert.doesNotMatch(dock.split("className: 'dsh-annotations-capsule dsh-annotations-card-pill'")[1].split("h('svg'")[0], /onClick/);
   assert.match(dock, /className: 'dsh-annotations-capsule-text'/);
   assert.match(dock, /h\('path', \{ d: 'M5 3\.75h10/);
-  assert.match(source, /\.dsh-annotations-dock:hover \.dsh-annotations-capsule-text,[^}]+mask-image:linear-gradient/);
-  assert.match(source, /\.dsh-annotations-close\{[^}]+z-index:1;[^}]+border-radius:50%/);
+  assert.match(source, /\.dsh-annotations-dock:hover \.dsh-annotations-capsule-text,[^}]+mask-image:linear-gradient\(to right,#000 calc\(100% - 40px\),transparent calc\(100% - 14px\)\)/);
+  assert.match(source, /\.dsh-annotations-close\{position:absolute;z-index:1;top:3px;right:7px;[^}]+width:24px;height:24px;[^}]+border-radius:50%/);
   assert.doesNotMatch(source, /dsh-annotations-capsule-count|padding:0 31px/);
   assert.match(dock, /className: 'dsh-annotations-close'/);
   assert.match(dock, /onClick: clear/);

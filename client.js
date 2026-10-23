@@ -61,8 +61,8 @@ window.__ModuleLoader__.load({
 [data-composer-seat]:has(.dsh-annotations-dock[data-annotations-inline]) [data-composer-placeholder]{transform:none}
 .dsh-annotations-capsule-text{display:inline-block;min-width:0}
 .dsh-annotations-dock:hover .dsh-annotations-capsule-text,.dsh-annotations-dock:focus-within .dsh-annotations-capsule-text{
-  mask-image:linear-gradient(to right,#000 calc(100% - 24px),transparent)}
-.dsh-annotations-close{position:absolute;z-index:1;top:2px;right:3px;display:grid;place-items:center;width:26px;height:26px;padding:0;
+  mask-image:linear-gradient(to right,#000 calc(100% - 40px),transparent calc(100% - 14px))}
+.dsh-annotations-close{position:absolute;z-index:1;top:3px;right:7px;display:grid;place-items:center;width:24px;height:24px;padding:0;
   border:1px solid var(--dsw-alias-border-l1,rgba(127,127,127,.25));border-radius:50%;background:var(--dsw-alias-bg-layer-1,Canvas);color:var(--dsw-alias-label-secondary,currentColor);
   cursor:pointer;opacity:0;pointer-events:none;transition:opacity .14s ease,background-color .14s ease,color .14s ease}
 .dsh-annotations-dock:hover .dsh-annotations-close,.dsh-annotations-dock:focus-within .dsh-annotations-close{opacity:1;pointer-events:auto}
