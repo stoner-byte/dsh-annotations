@@ -110,7 +110,6 @@ window.__ModuleLoader__.load({
 .dsh-aside-button:hover{background:color-mix(in srgb, currentColor 9%, transparent)}
 .dsh-aside-button-primary{background:var(--dsh-accent,#3b82f6);color:#fff}
 .dsh-aside-button-primary:hover{background:color-mix(in srgb, var(--dsh-accent,#3b82f6) 88%, #fff)}
-.dsh-aside-button-danger{color:#dc2626}
 .dsh-aside-marker{position:absolute;z-index:5;display:grid;place-items:center;width:18px;height:18px;border-radius:99px;
   background:var(--dsh-accent,#3b82f6);color:#fff;font:600 10.5px/1 var(--dsh-font-family,system-ui,sans-serif);
   cursor:pointer;border:none;box-shadow:0 2px 6px rgba(0,0,0,.2);padding:0}
@@ -154,18 +153,23 @@ window.__ModuleLoader__.load({
   color:var(--dsw-alias-label-primary,currentColor);box-shadow:0 8px 24px rgba(0,0,0,.16);font:400 12px/1.45 var(--dsh-font-family,system-ui,sans-serif)}
 .dsh-aside-card-body{right:0}
 .dsh-aside-card[data-aside-open-below] .dsh-aside-card-body{top:calc(100% + 8px);bottom:auto}
-.dsh-aside-preview-row{display:flex;gap:8px;align-items:flex-start;padding:6px;border-radius:8px}
+.dsh-aside-preview-row{display:flex;flex:none;gap:8px;align-items:flex-start;padding:6px;border-radius:8px}
 .dsh-aside-preview-row-editable{cursor:pointer}
 .dsh-aside-preview-row-editable:hover,.dsh-aside-preview-row-editable:focus-visible{background:color-mix(in srgb, currentColor 6%, transparent)}
 .dsh-aside-preview-row-editable:focus-visible{outline:2px solid var(--dsw-alias-brand-primary,#3b82f6);outline-offset:2px}
 .dsh-aside-preview-index{display:grid;place-items:center;min-width:18px;height:18px;border-radius:99px;flex:none;
   background:var(--dsh-accent,#3b82f6);color:#fff;font:600 10.5px/1 var(--dsh-font-family,system-ui,sans-serif)}
-.dsh-aside-preview-text{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
+.dsh-aside-preview-text{display:flex;flex-direction:column;gap:8px;min-width:0;flex:1}
 .dsh-aside-preview-quote,.dsh-aside-preview-comment{overflow:hidden;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;font-size:12px}
+.dsh-aside-preview-row-expanded .dsh-aside-preview-quote,.dsh-aside-preview-row-expanded .dsh-aside-preview-comment{display:block;overflow:visible;white-space:pre-wrap}
 .dsh-aside-preview-quote{opacity:.85}
 .dsh-aside-preview-comment{opacity:.62}
-.dsh-aside-preview-row button{all:unset;flex:none;font-size:11.5px;opacity:.6;cursor:pointer;padding:2px 4px;border-radius:5px}
-.dsh-aside-preview-row button:hover,.dsh-aside-preview-row button:focus-visible{opacity:1;background:color-mix(in srgb, currentColor 10%, transparent)}
+.dsh-aside-preview-expand{align-self:flex-start;border:0;background:transparent;padding:0;color:var(--dsw-alias-brand-primary,#3b82f6);font:inherit;cursor:pointer}
+.dsh-aside-preview-expand:hover{text-decoration:underline}
+.dsh-aside-preview-expand:focus-visible{outline:2px solid currentColor;outline-offset:2px}
+.dsh-aside-preview-row .dsh-aside-preview-remove{all:unset;flex:none;font-size:11.5px;cursor:pointer;padding:2px 4px;border-radius:5px}
+.dsh-aside-button-danger,.dsh-aside-preview-row .dsh-aside-preview-remove{color:var(--dsw-alias-state-error-primary,#dc2626)}
+.dsh-aside-preview-row .dsh-aside-preview-remove:hover,.dsh-aside-preview-row .dsh-aside-preview-remove:focus-visible{background:color-mix(in srgb, currentColor 10%, transparent)}
 .dsh-aside-panel{display:flex;flex-direction:column;height:100%;min-height:0;font:400 13px/1.5 var(--dsh-font-family,system-ui,sans-serif)}
 .dsh-aside-panel-quote{flex:none;margin:10px 12px 0;padding:8px 10px;border-radius:9px;max-height:120px;overflow:auto;white-space:pre-wrap;
   font-size:12px;opacity:.8;background:color-mix(in srgb, var(--dsh-accent,#3b82f6) 9%, transparent);
@@ -196,14 +200,14 @@ window.__ModuleLoader__.load({
     const MESSAGES = {
       zh: {
         add: '添加到对话', ask: '在侧边聊天中提问', annotations: '条注释', quote: '所选文本',
-        commentPlaceholder: '添加可选评论…', commentLabel: '用户评论', cancel: '取消', save: '保存', remove: '删除',
+        commentPlaceholder: '添加可选评论…', commentLabel: '用户评论', cancel: '取消', save: '保存', remove: '删除', expand: '展开', collapse: '收起',
         clearAll: '清除全部注释', clearFailed: '无法清除注释。', aside: '旁注讨论', empty: '这段对话是临时的，只用于讨论所选内容。',
         inputPlaceholder: '就所选内容提问…', send: '发送', stop: '停止', thinking: '思考中…',
         inherited: '使用主会话模型', close: '关闭', thinkingLabel: '思考',
       },
       en: {
         add: 'Add to chat', ask: 'Ask in side chat', annotations: 'annotations', quote: 'Selected text',
-        commentPlaceholder: 'Add an optional comment…', commentLabel: 'Comment', cancel: 'Cancel', save: 'Save', remove: 'Remove',
+        commentPlaceholder: 'Add an optional comment…', commentLabel: 'Comment', cancel: 'Cancel', save: 'Save', remove: 'Remove', expand: 'Expand', collapse: 'Collapse',
         clearAll: 'Delete all annotations', clearFailed: 'Could not delete the annotations.', aside: 'Aside', empty: 'This discussion is temporary and only sees the selected passage.',
         inputPlaceholder: 'Ask about this passage…', send: 'Send', stop: 'Stop', thinking: 'Thinking…',
         inherited: 'Using the parent model', close: 'Close', thinkingLabel: 'Reasoning',
@@ -737,9 +741,24 @@ window.__ModuleLoader__.load({
 
     function AsidePreview({ annotations, locale, className, onEdit, onRemove }) {
       const messages = MESSAGES[locale];
-      return h('div', { className: `dsh-aside-preview ${className}`, role: 'list' }, annotations.map((annotation, index) => h('div', {
+      const previewRef = useRef(null);
+      const [expandedIndex, setExpandedIndex] = useState(null);
+      const [truncated, setTruncated] = useState([]);
+      useLayoutEffect(() => {
+        const measure = () => {
+          const rows = previewRef.current?.querySelectorAll('.dsh-aside-preview-row') ?? [];
+          const next = [...rows].map((row, index) => index === expandedIndex
+            || [...row.querySelectorAll('.dsh-aside-preview-quote,.dsh-aside-preview-comment')]
+              .some(text => text.scrollHeight > text.clientHeight + 1));
+          setTruncated(previous => previous.length === next.length && previous.every((value, index) => value === next[index]) ? previous : next);
+        };
+        measure();
+        window.addEventListener('resize', measure);
+        return () => window.removeEventListener('resize', measure);
+      }, [annotations, expandedIndex]);
+      return h('div', { ref: previewRef, className: `dsh-aside-preview ${className}`, role: 'list' }, annotations.map((annotation, index) => h('div', {
         key: `aside-preview-${String(index)}`,
-        className: `dsh-aside-preview-row${onEdit === undefined ? '' : ' dsh-aside-preview-row-editable'}`,
+        className: `dsh-aside-preview-row${onEdit === undefined ? '' : ' dsh-aside-preview-row-editable'}${expandedIndex === index ? ' dsh-aside-preview-row-expanded' : ''}`,
         role: 'listitem',
         tabIndex: onEdit === undefined ? undefined : 0,
         onClick: onEdit === undefined ? undefined : () => onEdit(index),
@@ -751,11 +770,15 @@ window.__ModuleLoader__.load({
       },
         h('span', { className: 'dsh-aside-preview-index' }, String(index + 1)),
         h('span', { className: 'dsh-aside-preview-text' },
-          h('span', { className: 'dsh-aside-preview-quote' }, annotation.text),
-          annotation.comment === undefined ? null : h('span', { className: 'dsh-aside-preview-comment' }, annotation.comment),
+          h('span', { className: 'dsh-aside-preview-quote', title: annotation.text }, annotation.text),
+          annotation.comment === undefined ? null : h('span', { className: 'dsh-aside-preview-comment', title: annotation.comment }, annotation.comment),
+          truncated[index] ? h('button', {
+            type: 'button', className: 'dsh-aside-preview-expand', 'aria-expanded': expandedIndex === index,
+            onClick: event => { event.stopPropagation(); setExpandedIndex(expandedIndex === index ? null : index); },
+          }, expandedIndex === index ? messages.collapse : messages.expand) : null,
         ),
         onRemove === undefined ? null : h('button', {
-          type: 'button', onClick: event => { event.stopPropagation(); onRemove(index); },
+          type: 'button', className: 'dsh-aside-preview-remove', onClick: event => { event.stopPropagation(); onRemove(index); },
         }, messages.remove),
       )));
     }
@@ -996,9 +1019,12 @@ window.__ModuleLoader__.load({
         const card = cardRef.current;
         const preview = card?.querySelector('.dsh-aside-card-body');
         if (!card || !preview) return;
-        const box = card.getBoundingClientRect();
-        card.toggleAttribute('data-aside-open-below',
-          sentPopoverBelow(box, preview.getBoundingClientRect().height, window.innerHeight));
+        const place = () => card.toggleAttribute('data-aside-open-below',
+          sentPopoverBelow(card.getBoundingClientRect(), preview.getBoundingClientRect().height, window.innerHeight));
+        const resize = new ResizeObserver(place);
+        resize.observe(preview);
+        place();
+        return () => resize.disconnect();
       }, [expanded]);
       if (annotations.length === 0) return null;
       return h('div', {

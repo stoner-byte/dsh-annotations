@@ -252,6 +252,18 @@ test('composer and sent annotations share one hover preview layout', () => {
   assert.match(preview, /onRemove === undefined \? null/);
 });
 
+test('preview expands only truncated text and keeps native full-text tooltips', () => {
+  const preview = source.split('function AsidePreview(')[1].split('function placeDock(')[0];
+  assert.match(preview, /text.scrollHeight > text.clientHeight \+ 1/);
+  assert.match(preview, /truncated\[index\] \? h\('button'/);
+  assert.match(preview, /'aria-expanded': expandedIndex === index/);
+  assert.match(preview, /event.stopPropagation\(\); setExpandedIndex\(/);
+  assert.match(preview, /title: annotation.text/);
+  assert.match(preview, /title: annotation.comment/);
+  assert.match(source, /\.dsh-aside-preview-row-expanded \.dsh-aside-preview-quote,[^}]+display:block;overflow:visible/);
+  assert.match(source, /\.dsh-aside-preview\{[^}]+max-height:240px;\s*overflow:auto/);
+});
+
 test('sent annotation is a hover pill positioned after attachments', () => {
   const sent = source.split('function AsideMessages(')[1].split('function contentText(')[0];
   assert.equal(api.placeSentPill({ top: 100 }, { bottom: 230 }), 138);
@@ -260,6 +272,7 @@ test('sent annotation is a hover pill positioned after attachments', () => {
   assert.match(sent, /querySelector\('\[data-message-attachments\]'\)/);
   assert.match(sent, /onMouseEnter: \(\) => setExpanded\(true\)/);
   assert.match(sent, /onFocus: \(\) => setExpanded\(true\)/);
+  assert.match(sent, /const resize = new ResizeObserver\(place\)/);
   assert.doesNotMatch(sent, /onClick: \(\) => setExpanded|▸|▾/);
   assert.match(source, /\[data-message-attachments\]\{margin-bottom:38px\}/);
   assert.doesNotMatch(source, /\.dsh-aside-card-pill\{[^}]*width:100%/);
