@@ -133,7 +133,7 @@ test('badge uses scroll-content coordinates inside the scrollport', () => {
   assert.doesNotMatch(overlay, /addEventListener\('scroll'|markers.map\(/);
 });
 
-test('transcript controls use scroll coordinates and composer editor stays fixed', () => {
+test('transcript controls use scroll coordinates and detached editor falls back to fixed', () => {
   const scroll = {
     getBoundingClientRect: () => ({ top: 80, left: 100, right: 500, bottom: 700 }),
     clientTop: 1, clientLeft: 2, scrollTop: 260, scrollLeft: 40,
@@ -175,16 +175,30 @@ test('composer annotation preview opens on hover without click-to-toggle', () =>
   assert.doesNotMatch(dock, /expanded \? '▾' : '▸'/);
 });
 
-test('composer entries and transcript badges share one floating editor', () => {
+test('composer entries scroll to loaded text and share the badge editor', () => {
   const dock = source.split('function AsideDock(')[1].split('function AsideMessages(')[0];
   const overlay = source.split('function AsideOverlay(')[1].split('function focusComposer(')[0];
   const preview = source.split('function AsidePreview(')[1].split('function placeDock(')[0];
-  assert.match(preview, /onEdit\(index, event.currentTarget.getBoundingClientRect\(\)\)/);
-  assert.match(dock, /onEdit: \(index, rect\) => \{ setExpanded\(false\); onEdit\(index, rect\); \}/);
+  const scroll = { scrollTop: 300 };
+  api.scrollAnnotationIntoView({ top: 900, bottom: 920 }, scroll, { top: 100, bottom: 700 });
+  assert.equal(scroll.scrollTop, 800);
+  api.scrollAnnotationIntoView({ top: 380, bottom: 420 }, scroll, { top: 100, bottom: 700 });
+  assert.equal(scroll.scrollTop, 800);
+  api.scrollAnnotationIntoView({ top: 50, bottom: 70 }, scroll, { top: 100, bottom: 700 });
+  assert.equal(scroll.scrollTop, 450);
+  assert.match(preview, /onEdit\(index\)/);
+  assert.match(dock, /onEdit: \(index\) => \{ setExpanded\(false\); onEdit\(index\); \}/);
+  assert.match(source, /onEdit: index => access.openAnnotation\?\.\(index, true\)/);
   assert.match(overlay, /access.openAnnotation = openAnnotation/);
+  assert.match(source, /sessionId === undefined \? null : document.querySelector\(`/);
+  assert.match(source, /document.querySelector\('\[data-conversation-scroll\]'\)\?\.closest\('\[data-conversation-session\]'\)/);
   assert.match(overlay, /marker.addEventListener\('click', \(\) => access.openAnnotation\?\.\(index\)\)/);
-  assert.match(overlay, /openEditor\(\{\s*text: annotation.text,/);
-  assert.match(overlay, /rect: rect !== undefined && rect.bottom >= bounds.top && rect.top <= bounds.bottom \? rect : fallbackRect/);
+  assert.match(overlay, /for \(const scroll of target.scrollports\)/);
+  assert.match(overlay, /scrollAnnotationIntoView\(rect, scroll, readBounds\(scroll\)\)/);
+  assert.match(overlay, /window.requestAnimationFrame\(show\)/);
+  assert.match(overlay, /JSON.stringify\(access.currentAnnotations\(\)\[index\]\) === original/);
+  assert.match(overlay, /openEditor\(\{ \.\.\.annotation, sessionId, index, original, scroll: target.scroll, range: target.range, rect: target.rect \}\)/);
+  assert.doesNotMatch(overlay, /fallbackRect/);
   assert.doesNotMatch(source, /AsideDockHost|dsh-aside-dock-editor|--dsh-aside-editor-/);
 });
 

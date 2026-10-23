@@ -568,11 +568,11 @@ window.__ModuleLoader__.load({
       return range;
     }
 
-    function rootOfAnchor(nodeKey) {
-      for (const root of document.querySelectorAll('[data-conversation-session]')) {
-        const host = root.querySelector(`[data-chat-anchor-key="${CSS.escape(nodeKey)}"]`);
-        if (host !== null) return { root, host };
-      }
+    function rootOfAnchor(nodeKey, sessionId) {
+      const root = (sessionId === undefined ? null : document.querySelector(`[data-conversation-session="${CSS.escape(sessionId)}"]`))
+        ?? document.querySelector('[data-conversation-scroll]')?.closest('[data-conversation-session]');
+      const host = root?.querySelector(`[data-chat-anchor-key="${CSS.escape(nodeKey)}"]`);
+      if (host !== null && host !== undefined) return { root, host };
     }
 
     /** The visual line under a double-click: the caret's own text node,
@@ -665,6 +665,11 @@ window.__ModuleLoader__.load({
       };
     }
 
+    function scrollAnnotationIntoView(rect, scroll, bounds) {
+      if (rect.top >= bounds.top + GAP && rect.bottom <= bounds.bottom - GAP) return;
+      scroll.scrollTop += rect.top - (bounds.top + bounds.bottom) / 2;
+    }
+
     function readBounds(container) {
       const scroll = container ?? document.querySelector('[data-conversation-scroll]');
       const seat = document.querySelector('[data-composer-seat]');
@@ -736,11 +741,11 @@ window.__ModuleLoader__.load({
         className: `dsh-aside-preview-row${onEdit === undefined ? '' : ' dsh-aside-preview-row-editable'}`,
         role: 'listitem',
         tabIndex: onEdit === undefined ? undefined : 0,
-        onClick: onEdit === undefined ? undefined : event => onEdit(index, event.currentTarget.getBoundingClientRect()),
+        onClick: onEdit === undefined ? undefined : () => onEdit(index),
         onKeyDown: onEdit === undefined ? undefined : event => {
           if (event.target !== event.currentTarget || (event.key !== 'Enter' && event.key !== ' ')) return;
           event.preventDefault();
-          onEdit(index, event.currentTarget.getBoundingClientRect());
+          onEdit(index);
         },
       },
         h('span', { className: 'dsh-aside-preview-index' }, String(index + 1)),
@@ -906,7 +911,7 @@ window.__ModuleLoader__.load({
           h('path', { d: 'M5.5 5.5l9 9m0-9-9 9' }))),
         expanded ? h(AsidePreview, {
           annotations, locale, className: 'dsh-aside-list',
-          onEdit: (index, rect) => { setExpanded(false); onEdit(index, rect); },
+          onEdit: (index) => { setExpanded(false); onEdit(index); },
           onRemove: remove,
         }) : null,
       );
@@ -1157,19 +1162,21 @@ window.__ModuleLoader__.load({
       const barBoxRef = useRef(null);
       const editorBoxRef = useRef(null);
       const editorOffsetRef = useRef(null);
+      const pendingOpenRef = useRef(0);
+      useEffect(() => () => { pendingOpenRef.current += 1; }, []);
       const repositionRef = useRef(null);
       repositionRef.current = () => {
-        const currentRange = (anchor, range) => {
-          const found = anchor === undefined ? undefined : rootOfAnchor(anchor.nodeKey);
+        const currentRange = (anchor, range, sessionId) => {
+          const found = anchor === undefined ? undefined : rootOfAnchor(anchor.nodeKey, sessionId);
           return (found === undefined ? undefined : rangeOfAnchor(found.host, anchor))
             ?? (range?.commonAncestorContainer.isConnected ? range : undefined);
         };
         if (bar?.scroll && barBoxRef.current !== null) {
-          const rect = currentRange(bar.anchor, bar.range)?.getBoundingClientRect();
+          const rect = currentRange(bar.anchor, bar.range, bar.sessionId)?.getBoundingClientRect();
           if (rect !== undefined) positionAtAnchor(barBoxRef.current, rect, bar.scroll, bar.offset);
         }
         if (editorScroll !== undefined && editorBoxRef.current !== null && editorOffsetRef.current !== null) {
-          const rect = currentRange(editor.seed.anchor, editor.seed.range)?.getBoundingClientRect();
+          const rect = currentRange(editor.seed.anchor, editor.seed.range, editor.seed.sessionId)?.getBoundingClientRect();
           if (rect !== undefined) positionAtAnchor(editorBoxRef.current, rect, editorScroll, editorOffsetRef.current);
         }
       };
@@ -1187,7 +1194,7 @@ window.__ModuleLoader__.load({
           const highlightRanges = [];
           annotations.forEach((annotation, index) => {
             if (annotation.anchor === undefined) return;
-            const found = rootOfAnchor(annotation.anchor.nodeKey);
+            const found = rootOfAnchor(annotation.anchor.nodeKey, annotation.sessionId);
             if (found === undefined || !scroll.contains(found.host)) return;
             const range = rangeOfAnchor(found.host, annotation.anchor);
             if (range === undefined) return;
@@ -1250,6 +1257,7 @@ window.__ModuleLoader__.load({
           if (editorRefState.current !== null && target instanceof Element
             && (target.matches('[data-conversation-scroll]')
               || event.pointerType !== 'mouse' && target.closest('[data-conversation-scroll]') !== null)) return;
+          pendingOpenRef.current += 1;
           setBar(null);
           setEditor(null);
         };
@@ -1328,21 +1336,48 @@ window.__ModuleLoader__.load({
         setEditor({ seed, scroll, placed: scroll === undefined ? placed : placeInScroll(placed, scroll) });
         setBar(null);
       };
-      const openAnnotation = (index, fallbackRect) => {
+      const openAnnotation = (index, fromComposer = false) => {
         const annotation = access.currentAnnotations()[index];
         if (annotation === undefined) return;
-        const found = annotation.anchor === undefined ? undefined : rootOfAnchor(annotation.anchor.nodeKey);
-        const range = found === undefined ? undefined : rangeOfAnchor(found.host, annotation.anchor);
-        const rect = range?.getBoundingClientRect();
-        const bounds = readBounds();
-        openEditor({
-          text: annotation.text,
-          comment: annotation.comment,
-          anchor: annotation.anchor,
-          sessionId: annotation.sessionId ?? access.currentSessionId(),
-          index,
-          rect: rect !== undefined && rect.bottom >= bounds.top && rect.top <= bounds.bottom ? rect : fallbackRect,
-          ...(fallbackRect === undefined && range !== undefined ? { range, scroll: found.root.querySelector('[data-conversation-scroll]') ?? undefined } : {}),
+        const sessionId = annotation.sessionId ?? access.currentSessionId();
+        const original = JSON.stringify(annotation);
+        const request = ++pendingOpenRef.current;
+        const locate = () => {
+          const found = annotation.anchor === undefined ? undefined : rootOfAnchor(annotation.anchor.nodeKey, sessionId);
+          const outer = found?.root.querySelector('[data-conversation-scroll]');
+          const range = found === undefined ? undefined : rangeOfAnchor(found.host, annotation.anchor);
+          if (!(outer instanceof HTMLElement) || !outer.contains(found.host) || range === undefined) return;
+          const scrollports = [];
+          for (let node = found.host; node !== outer; node = node.parentElement) {
+            if (node.scrollHeight > node.clientHeight && /^(auto|scroll)$/.test(getComputedStyle(node).overflowY)) scrollports.push(node);
+          }
+          scrollports.push(outer);
+          const rect = [...range.getClientRects()].filter(part => part.height > 0).at(-1);
+          if (rect !== undefined) return { scroll: scrollports[0], scrollports, range, rect };
+        };
+        const current = () => request === pendingOpenRef.current && sessionId === access.currentSessionId()
+          && JSON.stringify(access.currentAnnotations()[index]) === original;
+        const unavailable = () => access.currentInput()?.notify?.('error', 'The selected text is not available in this conversation.');
+        const show = () => {
+          if (!current()) return;
+          const target = locate();
+          if (target === undefined) { unavailable(); return; }
+          if (fromComposer && target.scrollports.some(scroll => {
+            const bounds = readBounds(scroll);
+            return target.rect.top < bounds.top || target.rect.bottom > bounds.bottom;
+          })) { unavailable(); return; }
+          openEditor({ ...annotation, sessionId, index, original, scroll: target.scroll, range: target.range, rect: target.rect });
+        };
+        if (!fromComposer) { show(); return; }
+        window.requestAnimationFrame(() => {
+          if (!current()) return;
+          const target = locate();
+          if (target === undefined) { unavailable(); return; }
+          for (const scroll of target.scrollports) {
+            const rect = [...target.range.getClientRects()].filter(part => part.height > 0).at(-1);
+            if (rect !== undefined) scrollAnnotationIntoView(rect, scroll, readBounds(scroll));
+          }
+          window.requestAnimationFrame(show);
         });
       };
       useEffect(() => {
@@ -1361,6 +1396,10 @@ window.__ModuleLoader__.load({
         }
         if (input === undefined) return;
         const existing = access.currentAnnotations();
+        if (seed.index !== undefined && JSON.stringify(existing[seed.index]) !== seed.original) {
+          input.notify?.('error', 'The annotation changed. Reopen it before saving.');
+          return;
+        }
         const annotation = {
           text: seed.text,
           ...(comment === undefined ? {} : { comment }),
@@ -1372,6 +1411,7 @@ window.__ModuleLoader__.load({
           : existing.map((value, position) => position === seed.index ? annotation : value);
         if (!writeAnnotations(input, next)) {
           input.notify?.('error', 'The annotation could not be saved.');
+          return;
         }
         setEditor(null);
         focusComposer();
@@ -1386,7 +1426,12 @@ window.__ModuleLoader__.load({
           return;
         }
         if (input === undefined) return;
-        writeAnnotations(input, access.currentAnnotations().filter((_, position) => position !== current.seed.index));
+        const existing = access.currentAnnotations();
+        if (JSON.stringify(existing[current.seed.index]) !== current.seed.original) {
+          input.notify?.('error', 'The annotation changed. Reopen it before deleting.');
+          return;
+        }
+        if (!writeAnnotations(input, existing.filter((_, position) => position !== current.seed.index))) return;
         setEditor(null);
         focusComposer();
       };
@@ -1519,7 +1564,7 @@ window.__ModuleLoader__.load({
         name: 'conversation.input.overlay',
         id: 'dsh-aside-dock',
         order: 40,
-      }, () => h(AsideDock, { access, locale, onEdit: (index, rect) => access.openAnnotation?.(index, rect) }))), 'dsh-aside.dock');
+      }, () => h(AsideDock, { access, locale, onEdit: index => access.openAnnotation?.(index, true) }))), 'dsh-aside.dock');
 
       ctx.effect(() => slots.inject('shell.overlay', () => slots.register({
         name: 'shell.overlay',
@@ -1609,6 +1654,7 @@ window.__ModuleLoader__.load({
         readAnnotations,
         writeAnnotations,
         placeFloating,
+        scrollAnnotationIntoView,
         readBounds,
         placeInScroll,
         positionAtAnchor,
