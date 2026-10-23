@@ -257,7 +257,7 @@ test('badge uses scroll-content coordinates inside the scrollport', () => {
   scroll.scrollTop += 100;
   assert.deepEqual(api.placeMarker({ top: 235, right: 739 }, scroll), { top: 492, left: 641 });
   const overlay = source.split('function AnnotationOverlay(')[1].split('function focusComposer(')[0];
-  assert.match(source, /\.dsh-annotations-marker\{position:absolute/);
+  assert.match(source, /\.dsh-annotations-marker\{position:absolute;z-index:1;/);
   assert.match(overlay, /scroll.append\(marker\)/);
   assert.match(overlay, /for \(const marker of markers.values\(\)\) marker.remove\(\)/);
   assert.match(overlay, /scroll.style.position = previousPosition/);
@@ -300,7 +300,12 @@ test('composer annotation preview opens on hover without click-to-toggle', () =>
   const dock = source.split('function AnnotationDock(')[1].split('function AnnotationMessages(')[0];
   assert.match(dock, /onMouseEnter: \(\) => setExpanded\(true\)/);
   assert.match(dock, /onMouseLeave: \(\) => setExpanded\(false\)/);
-  assert.doesNotMatch(dock.split("className: 'dsh-annotations-capsule'")[1].split("h('span'")[0], /onClick/);
+  assert.doesNotMatch(dock.split("className: 'dsh-annotations-capsule dsh-annotations-card-pill'")[1].split("h('svg'")[0], /onClick/);
+  assert.match(dock, /className: 'dsh-annotations-capsule-text'/);
+  assert.match(dock, /h\('path', \{ d: 'M5 3\.75h10/);
+  assert.match(source, /\.dsh-annotations-dock:hover \.dsh-annotations-capsule-text,[^}]+mask-image:linear-gradient/);
+  assert.match(source, /\.dsh-annotations-close\{[^}]+z-index:1;[^}]+border-radius:50%/);
+  assert.doesNotMatch(source, /dsh-annotations-capsule-count|padding:0 31px/);
   assert.match(dock, /className: 'dsh-annotations-close'/);
   assert.match(dock, /onClick: clear/);
   assert.doesNotMatch(dock, /expanded \? '▾' : '▸'/);
@@ -340,6 +345,7 @@ test('composer and sent annotations share one hover preview layout', () => {
   assert.match(dock, /h\(AnnotationPreview, \{\s*annotations, locale, className: 'dsh-annotations-list'/);
   assert.match(sent, /h\(AnnotationPreview, \{ annotations, locale, className: 'dsh-annotations-card-body' \}\)/);
   assert.match(source, /\.dsh-annotations-preview\{[^}]*width:min\(320px,calc\(100vw - 32px\)\)/);
+  assert.match(source, /\.dsh-annotations-dock:has\(\.dsh-annotations-list\),\.dsh-annotations-card:has\(\.dsh-annotations-card-body\)\{z-index:6\}/);
   assert.match(source, /background:var\(--dsh-surface-raised,Canvas\)/);
   assert.match(source, /\.dsh-annotations-preview-index\{[^}]*background:var\(--dsh-accent,#3b82f6\)/);
   assert.match(preview, /className: 'dsh-annotations-preview-index' \}, String\(index \+ 1\)/);
