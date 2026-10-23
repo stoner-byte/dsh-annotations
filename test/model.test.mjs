@@ -177,6 +177,33 @@ test('whole-paragraph boundaries retain text offsets across inline controls', ()
   }
 });
 
+test('a selection ending on the next message boundary stays in its own message', () => {
+  const previousDocument = globalThis.document;
+  const previousNodeFilter = globalThis.NodeFilter;
+  globalThis.NodeFilter = { SHOW_TEXT: 4 };
+  const last = { nodeValue: 'last paragraph', parentElement: { closest: () => null } };
+  const control = { nodeValue: 'toolbar', parentElement: { closest: () => ({}) } };
+  globalThis.document = { createTreeWalker: () => {
+    const nodes = [last, control];
+    return { nextNode: () => nodes.shift() ?? null };
+  } };
+  const range = {
+    comparePoint: () => 0,
+    cloneRange: () => ({
+      setEnd(node, offset) { assert.equal(node, last); assert.equal(offset, last.nodeValue.length); },
+      toString: () => 'last paragraph',
+    }),
+  };
+  try {
+    assert.equal(api.rangeEndingInHost(range, {}, 'last paragraph\n').text, 'last paragraph');
+    assert.equal(api.rangeEndingInHost(range, {}, 'last paragraph and next message'), undefined);
+    assert.equal(api.rangeEndingInHost({ ...range, comparePoint: () => 1 }, {}, 'last paragraph'), undefined);
+  } finally {
+    globalThis.document = previousDocument;
+    globalThis.NodeFilter = previousNodeFilter;
+  }
+});
+
 test('the toolbar prefers above, flips below, and stays inside the viewport', () => {
   const bounds = { top: 100, bottom: 700, left: 0, right: 800 };
   const above = api.placeFloating({ top: 300, bottom: 320, left: 40, right: 200 }, { width: 320, height: 36 }, bounds);

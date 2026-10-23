@@ -647,14 +647,28 @@ window.__ModuleLoader__.load({
       }
     }
 
+    function rangeEndingInHost(range, host, text) {
+      const last = textNodesOf(host).at(-1);
+      if (last === undefined || range.comparePoint(last, last.nodeValue.length) > 0) return;
+      const clipped = range.cloneRange();
+      clipped.setEnd(last, last.nodeValue.length);
+      const ownText = normalizeText(clipped.toString());
+      return ownText.trimEnd() === text.trimEnd() ? { range: clipped, text: ownText } : undefined;
+    }
+
     function captureSelection(chat) {
       const selection = window.getSelection();
       if (selection === null || selection.isCollapsed || selection.rangeCount !== 1) return;
-      const range = selection.getRangeAt(0);
+      let range = selection.getRangeAt(0);
       const startHost = chatHostOf(range.startContainer);
       const endHost = chatHostOf(range.endContainer);
-      if (startHost === null || startHost !== endHost) return;
-      const text = normalizeText(selection.toString());
+      if (startHost === null) return;
+      let text = normalizeText(selection.toString());
+      if (startHost !== endHost) {
+        const clipped = rangeEndingInHost(range, startHost, text);
+        if (clipped === undefined) return;
+        ({ range, text } = clipped);
+      }
       if (text.trim().length === 0 || text.length > MAX_SELECTION_CHARS) return;
       const nodeKey = startHost.getAttribute('data-chat-anchor-key');
       if (nodeKey === null) return;
@@ -1754,6 +1768,7 @@ window.__ModuleLoader__.load({
       apply,
       __test: {
         offsetsOf,
+        rangeEndingInHost,
         serializeAnnotations,
         parseAsideContext,
         extractAsideContent,
