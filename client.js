@@ -114,15 +114,11 @@ window.__ModuleLoader__.load({
   background:var(--dsh-accent,#3b82f6);color:#fff;font:600 10.5px/1 var(--dsh-font-family,system-ui,sans-serif);
   cursor:pointer;border:none;box-shadow:0 2px 6px rgba(0,0,0,.2);padding:0}
 .dsh-aside-marker:focus-visible{outline:2px solid color-mix(in srgb, var(--dsh-accent,#3b82f6) 45%, #fff);outline-offset:1px}
-body:has(.dsh-aside-dock-editor) .dsh-aside-marker{visibility:hidden}
 .dsh-aside-dock{position:absolute;top:8px;left:14px;z-index:3;display:flex;flex-direction:column;gap:6px;max-width:calc(100% - 28px)}
-.dsh-aside-dock-editor{position:absolute;top:var(--dsh-aside-editor-top,44px);left:14px;z-index:4}
 [data-composer-seat]:has(.dsh-aside-dock) [data-composer-input]{padding-top:39px}
 [data-composer-seat]:has(.dsh-aside-dock) [data-composer-placeholder]{transform:translateY(35px)}
-[data-composer-seat]:has(.dsh-aside-dock[data-aside-inline]):not(:has(.dsh-aside-dock-editor)) [data-composer-input]{padding-top:0}
-[data-composer-seat]:has(.dsh-aside-dock[data-aside-inline]):not(:has(.dsh-aside-dock-editor)) [data-composer-placeholder]{transform:none}
-[data-composer-seat]:has(.dsh-aside-dock-editor) [data-composer-input]{padding-top:calc(var(--dsh-aside-editor-height, 177px) + 53px)}
-[data-composer-seat]:has(.dsh-aside-dock-editor) [data-composer-placeholder]{transform:translateY(calc(var(--dsh-aside-editor-height, 177px) + 49px))}
+[data-composer-seat]:has(.dsh-aside-dock[data-aside-inline]) [data-composer-input]{padding-top:0}
+[data-composer-seat]:has(.dsh-aside-dock[data-aside-inline]) [data-composer-placeholder]{transform:none}
 .dsh-aside-capsule{display:inline-flex;align-items:center;gap:8px;height:30px;max-width:100%;width:fit-content;padding:0 31px 0 10px;
   border-radius:9px;cursor:pointer;font:500 12.5px/1 var(--dsh-font-family,system-ui,sans-serif);color:var(--dsw-alias-label-primary,currentColor);
   background:color-mix(in srgb, var(--dsh-accent,#3b82f6) 12%, transparent);
@@ -137,18 +133,7 @@ body:has(.dsh-aside-dock-editor) .dsh-aside-marker{visibility:hidden}
 .dsh-aside-close:hover,.dsh-aside-close:focus-visible{background:var(--dsw-alias-bg-layer-2,rgba(127,127,127,.1));color:var(--dsw-alias-label-primary,currentColor)}
 .dsh-aside-close:focus-visible{outline:2px solid var(--dsw-alias-brand-primary,#3b82f6);outline-offset:1px}
 .dsh-aside-dock:has(.dsh-aside-list)::before{content:"";position:absolute;left:0;right:0;bottom:100%;height:8px}
-.dsh-aside-list{position:absolute;bottom:calc(100% + 8px);left:0;width:320px;display:flex;flex-direction:column;gap:6px;max-height:240px;overflow:auto;
-  padding:8px;border-radius:10px;background:var(--dsh-surface-raised,Canvas);
-  border:1px solid var(--dsh-border-subtle,rgba(127,127,127,.24));box-shadow:0 8px 24px rgba(0,0,0,.16)}
-.dsh-aside-list-row{display:flex;gap:8px;align-items:flex-start;padding:6px;border-radius:8px;cursor:pointer}
-.dsh-aside-list-row:hover{background:color-mix(in srgb, currentColor 6%, transparent)}
-.dsh-aside-list-row .dsh-aside-list-index{display:grid;place-items:center;width:18px;height:18px;border-radius:99px;flex:none;
-  background:var(--dsh-accent,#3b82f6);color:#fff;font:600 10.5px/1 var(--dsh-font-family,system-ui,sans-serif)}
-.dsh-aside-list-text{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
-.dsh-aside-list-quote{overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;font-size:12px;opacity:.85}
-.dsh-aside-list-comment{font-size:12px;opacity:.62;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
-.dsh-aside-list-row button{all:unset;flex:none;font-size:11.5px;opacity:.6;cursor:pointer;padding:2px 4px;border-radius:5px}
-.dsh-aside-list-row button:hover{opacity:1;background:color-mix(in srgb, currentColor 10%, transparent)}
+.dsh-aside-list{left:0}
 .dsh-aside-message{position:relative;display:flex;flex-direction:column;align-items:flex-end;gap:8px;min-width:0}
 .dsh-aside-message-body{align-self:stretch;min-width:0}
 .dsh-aside-message[data-aside-after-attachments] [data-message-attachments]{margin-bottom:38px}
@@ -162,12 +147,18 @@ body:has(.dsh-aside-dock-editor) .dsh-aside-marker{visibility:hidden}
 .dsh-aside-card-pill:focus-visible{outline:2px solid var(--dsw-alias-brand-primary,#3b82f6);outline-offset:2px}
 .dsh-aside-card:has(.dsh-aside-card-body)::before{content:"";position:absolute;left:0;right:0;bottom:100%;height:8px}
 .dsh-aside-card[data-aside-open-below]::before{top:100%;bottom:auto}
-.dsh-aside-card-body{box-sizing:border-box;position:absolute;right:0;bottom:calc(100% + 8px);width:min(460px,calc(100vw - 32px));max-height:min(330px,50vh);
+.dsh-aside-preview{box-sizing:border-box;position:absolute;bottom:calc(100% + 8px);width:min(460px,calc(100vw - 32px));max-height:min(330px,50vh);
   overflow:auto;display:flex;flex-direction:column;padding:14px 16px;border:1px solid var(--dsw-alias-border-l1,rgba(127,127,127,.25));
   border-radius:12px;background:var(--dsw-alias-bg-overlay,Canvas);color:var(--dsw-alias-label-primary,currentColor);
   box-shadow:0 10px 28px rgba(0,0,0,.12);font:400 13px/1.5 var(--dsh-font-family,system-ui,sans-serif)}
+.dsh-aside-card-body{right:0}
 .dsh-aside-card[data-aside-open-below] .dsh-aside-card-body{top:calc(100% + 8px);bottom:auto}
 .dsh-aside-card-item{display:grid;grid-template-columns:20px minmax(0,1fr);gap:9px;padding:2px 0}
+.dsh-aside-card-item-editable{grid-template-columns:20px minmax(0,1fr) auto;cursor:pointer;border-radius:8px}
+.dsh-aside-card-item-editable:hover,.dsh-aside-card-item-editable:focus-visible{background:color-mix(in srgb, var(--dsw-alias-label-primary,currentColor) 5%, transparent)}
+.dsh-aside-card-item-editable:focus-visible{outline:2px solid var(--dsw-alias-brand-primary,#3b82f6);outline-offset:2px}
+.dsh-aside-card-item-editable button{all:unset;align-self:start;padding:2px 4px;border-radius:5px;cursor:pointer;font-size:12px;color:var(--dsw-alias-label-secondary,currentColor)}
+.dsh-aside-card-item-editable button:hover,.dsh-aside-card-item-editable button:focus-visible{color:var(--dsw-alias-state-error-primary,#dc2626);background:var(--dsw-alias-bg-layer-2,transparent)}
 .dsh-aside-card-item+.dsh-aside-card-item{margin-top:12px;padding-top:14px;border-top:1px solid var(--dsw-alias-border-l1,rgba(127,127,127,.2))}
 .dsh-aside-card-item-index{color:var(--dsw-alias-label-secondary,currentColor);font-size:12px}
 .dsh-aside-card-item-text{display:flex;flex-direction:column;gap:4px;min-width:0}
@@ -711,15 +702,40 @@ body:has(.dsh-aside-dock-editor) .dsh-aside-marker{visibility:hidden}
       );
     }
 
+    function AsidePreview({ annotations, locale, className, onEdit, onRemove }) {
+      const messages = MESSAGES[locale];
+      return h('div', { className: `dsh-aside-preview ${className}`, role: 'list' }, annotations.map((annotation, index) => h('div', {
+        key: `aside-preview-${String(index)}`,
+        className: `dsh-aside-card-item${onEdit === undefined ? '' : ' dsh-aside-card-item-editable'}`,
+        role: 'listitem',
+        tabIndex: onEdit === undefined ? undefined : 0,
+        onClick: onEdit === undefined ? undefined : event => onEdit(index, event.currentTarget.getBoundingClientRect()),
+        onKeyDown: onEdit === undefined ? undefined : event => {
+          if (event.target !== event.currentTarget || (event.key !== 'Enter' && event.key !== ' ')) return;
+          event.preventDefault();
+          onEdit(index, event.currentTarget.getBoundingClientRect());
+        },
+      },
+        h('span', { className: 'dsh-aside-card-item-index' }, `${String(index + 1)}.`),
+        h('div', { className: 'dsh-aside-card-item-text' },
+          h('span', { className: 'dsh-aside-card-item-label' }, `${messages.quote}:`),
+          h('blockquote', { className: 'dsh-aside-card-item-quote' }, annotation.text),
+          annotation.comment === undefined ? null : h('span', { className: 'dsh-aside-card-item-label' }, `${messages.commentLabel}:`),
+          annotation.comment === undefined ? null : h('div', { className: 'dsh-aside-card-item-comment' }, annotation.comment),
+        ),
+        onRemove === undefined ? null : h('button', {
+          type: 'button', onClick: event => { event.stopPropagation(); onRemove(index); },
+        }, messages.remove),
+      )));
+    }
+
     function placeDock(card, rail, last, dock, gap = 10) {
-      if (last === undefined) return { left: 14, top: 8, editorTop: 44, inline: false };
+      if (last === undefined) return { left: 14, top: 8, inline: false };
       const left = last.right - card.left + gap;
       const inline = last.width > 0 && left + dock.width + 14 <= Math.min(card.right, rail.right) - card.left;
-      const railBottom = rail.bottom - card.top;
       return {
         left: inline ? left : 14,
-        top: inline ? last.bottom - card.top - dock.height : railBottom + 8,
-        editorTop: railBottom + (inline ? 8 : 44),
+        top: inline ? last.bottom - card.top - dock.height : rail.bottom - card.top + 8,
         inline,
       };
     }
@@ -763,6 +779,10 @@ body:has(.dsh-aside-dock-editor) .dsh-aside-marker{visibility:hidden}
       useEffect(() => {
         if (annotations.length === 0 && expanded) setExpanded(false);
       }, [annotations.length, expanded]);
+      useLayoutEffect(() => {
+        const list = dockRef.current?.querySelector('.dsh-aside-list');
+        if (list) list.style.left = `${String(Math.min(0, window.innerWidth - 16 - dockRef.current.getBoundingClientRect().left - list.offsetWidth))}px`;
+      }, [expanded, annotations.length]);
       useEffect(() => {
         const dock = dockRef.current;
         const seat = dock?.closest('[data-composer-seat]');
@@ -777,7 +797,6 @@ body:has(.dsh-aside-dock-editor) .dsh-aside-marker{visibility:hidden}
           dock.style.left = `${String(position.left)}px`;
           dock.style.top = `${String(position.top)}px`;
           dock.toggleAttribute('data-aside-inline', position.inline);
-          seat.style.setProperty('--dsh-aside-editor-top', `${String(position.editorTop)}px`);
         };
         const mutation = new MutationObserver(place);
         mutation.observe(attachments, { childList: true, subtree: true });
@@ -789,7 +808,6 @@ body:has(.dsh-aside-dock-editor) .dsh-aside-marker{visibility:hidden}
           mutation.disconnect();
           resize.disconnect();
           attachments.removeEventListener('scroll', place, true);
-          seat.style.removeProperty('--dsh-aside-editor-top');
         };
       }, [annotations.length]);
       useEffect(() => {
@@ -861,24 +879,11 @@ body:has(.dsh-aside-dock-editor) .dsh-aside-marker{visibility:hidden}
         }, h('svg', { width: 15, height: 15, viewBox: '0 0 20 20', fill: 'none', stroke: 'currentColor',
           strokeWidth: 1.8, strokeLinecap: 'round', 'aria-hidden': true },
           h('path', { d: 'M5.5 5.5l9 9m0-9-9 9' }))),
-        expanded ? h('div', { className: 'dsh-aside-list', role: 'list' }, annotations.map((annotation, index) => h('div', {
-          key: `aside-${String(index)}`,
-          role: 'listitem',
-          className: 'dsh-aside-list-row',
-          onClick: () => { setExpanded(false); onEdit(index); },
-          onKeyDown: (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setExpanded(false); onEdit(index); } },
-          tabIndex: 0,
-        },
-          h('span', { className: 'dsh-aside-list-index' }, String(index + 1)),
-          h('span', { className: 'dsh-aside-list-text' },
-            h('span', { className: 'dsh-aside-list-quote' }, annotation.text),
-            annotation.comment === undefined ? null : h('span', { className: 'dsh-aside-list-comment' }, annotation.comment),
-          ),
-          h('button', {
-            type: 'button',
-            onClick: (event) => { event.stopPropagation(); remove(index); },
-          }, messages.remove),
-        ))) : null,
+        expanded ? h(AsidePreview, {
+          annotations, locale, className: 'dsh-aside-list',
+          onEdit: (index, rect) => { setExpanded(false); onEdit(index, rect); },
+          onRemove: remove,
+        }) : null,
       );
     }
 
@@ -928,17 +933,7 @@ body:has(.dsh-aside-dock-editor) .dsh-aside-marker{visibility:hidden}
             h('path', { d: 'M6.5 8h7m-7 3h4.5' })),
           `${String(annotations.length)} ${messages.annotations}`,
         ),
-        expanded ? h('div', { className: 'dsh-aside-card-body', role: 'list' }, annotations.map((annotation, index) => h('div', {
-          key: `aside-card-${String(index)}`, className: 'dsh-aside-card-item', role: 'listitem',
-        },
-          h('span', { className: 'dsh-aside-card-item-index' }, `${String(index + 1)}.`),
-          h('div', { className: 'dsh-aside-card-item-text' },
-            h('span', { className: 'dsh-aside-card-item-label' }, `${messages.quote}:`),
-            h('blockquote', { className: 'dsh-aside-card-item-quote' }, annotation.text),
-            annotation.comment === undefined ? null : h('span', { className: 'dsh-aside-card-item-label' }, `${messages.commentLabel}:`),
-            annotation.comment === undefined ? null : h('div', { className: 'dsh-aside-card-item-comment' }, annotation.comment),
-          ),
-        ))) : null,
+        expanded ? h(AsidePreview, { annotations, locale, className: 'dsh-aside-card-body' }) : null,
       );
     }
 
@@ -1254,6 +1249,26 @@ body:has(.dsh-aside-dock-editor) .dsh-aside-marker{visibility:hidden}
         setEditor({ seed, placed: { top: placed.top, left: placed.left } });
         setBar(null);
       };
+      const openAnnotation = (index, fallbackRect) => {
+        const annotation = access.currentAnnotations()[index];
+        if (annotation === undefined) return;
+        const found = annotation.anchor === undefined ? undefined : rootOfAnchor(annotation.anchor.nodeKey);
+        const range = found === undefined ? undefined : rangeOfAnchor(found.host, annotation.anchor);
+        const rect = range?.getBoundingClientRect();
+        const bounds = readBounds();
+        openEditor({
+          text: annotation.text,
+          comment: annotation.comment,
+          anchor: annotation.anchor,
+          sessionId: annotation.sessionId,
+          index,
+          rect: rect !== undefined && rect.bottom >= bounds.top && rect.top <= bounds.bottom ? rect : fallbackRect,
+        });
+      };
+      useEffect(() => {
+        access.openAnnotation = openAnnotation;
+        return () => { if (access.openAnnotation === openAnnotation) delete access.openAnnotation; };
+      }, [access, bar]);
 
       const save = (comment) => {
         const current = editor;
@@ -1341,20 +1356,7 @@ body:has(.dsh-aside-dock-editor) .dsh-aside-marker{visibility:hidden}
           className: 'dsh-aside-marker',
           style: { top: `${String(marker.top)}px`, left: `${String(marker.left)}px` },
           title: `${String(marker.index + 1)}`,
-          onClick: () => {
-            const annotation = annotations[marker.index];
-            if (annotation === undefined) return;
-            const found = rootOfAnchor(annotation.anchor.nodeKey);
-            const range = found === undefined ? undefined : rangeOfAnchor(found.host, annotation.anchor);
-            openEditor({
-              text: annotation.text,
-              comment: annotation.comment,
-              anchor: annotation.anchor,
-              sessionId: annotation.sessionId,
-              index: marker.index,
-              rect: range === undefined ? undefined : range.getBoundingClientRect(),
-            });
-          },
+          onClick: () => openAnnotation(marker.index),
         }, String(marker.index + 1))),
       );
     }
@@ -1433,7 +1435,7 @@ body:has(.dsh-aside-dock-editor) .dsh-aside-marker{visibility:hidden}
         name: 'conversation.input.overlay',
         id: 'dsh-aside-dock',
         order: 40,
-      }, () => h(AsideDockHost, { access, locale }))), 'dsh-aside.dock');
+      }, () => h(AsideDock, { access, locale, onEdit: (index, rect) => access.openAnnotation?.(index, rect) }))), 'dsh-aside.dock');
 
       ctx.effect(() => slots.inject('shell.overlay', () => slots.register({
         name: 'shell.overlay',
@@ -1509,51 +1511,6 @@ body:has(.dsh-aside-dock-editor) .dsh-aside-marker{visibility:hidden}
       } catch {
         return undefined;
       }
-    }
-
-    function AsideDockHost({ access, locale }) {
-      const annotations = useAnnotations(access);
-      const [editIndex, setEditIndex] = useState(undefined);
-      const editing = editIndex === undefined ? undefined : annotations[editIndex];
-      const editorRef = useRef(null);
-      useEffect(() => {
-        if (editIndex !== undefined && editing === undefined) setEditIndex(undefined);
-      }, [editIndex, editing]);
-      useEffect(() => {
-        const node = editorRef.current;
-        const seat = node?.closest('[data-composer-seat]');
-        if (node === null || seat === null) return;
-        const resize = () => seat.style.setProperty('--dsh-aside-editor-height', `${node.offsetHeight}px`);
-        const observer = new ResizeObserver(resize);
-        observer.observe(node);
-        resize();
-        return () => { observer.disconnect(); seat.style.removeProperty('--dsh-aside-editor-height'); };
-      }, [editing !== undefined]);
-      const apply = (mutate) => {
-        const input = access.currentInput();
-        if (input === undefined) return;
-        writeAnnotations(input, mutate(access.currentAnnotations()));
-        setEditIndex(undefined);
-        focusComposer();
-      };
-      return h(React.Fragment, null,
-        editing === undefined ? null : h('div', { ref: editorRef, className: 'dsh-aside-dock-editor', 'data-aside-skip': '' },
-          h(AnnotationEditor, {
-            locale,
-            draft: editing.text,
-            initialComment: editing.comment,
-            onSave: comment => apply(list => list.map((value, position) => {
-              if (position !== editIndex) return value;
-              const next = { ...value, ...(comment === undefined ? {} : { comment }) };
-              if (comment === undefined) delete next.comment;
-              return next;
-            })),
-            onCancel: () => setEditIndex(undefined),
-            onRemove: () => apply(list => list.filter((_, position) => position !== editIndex)),
-          }),
-        ),
-        h(AsideDock, { access, locale, onEdit: index => setEditIndex(index) }),
-      );
     }
 
     return {

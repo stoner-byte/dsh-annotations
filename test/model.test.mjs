@@ -131,6 +131,31 @@ test('composer annotation preview opens on hover without click-to-toggle', () =>
   assert.doesNotMatch(dock, /expanded \? '▾' : '▸'/);
 });
 
+test('composer entries and transcript badges share one floating editor', () => {
+  const dock = source.split('function AsideDock(')[1].split('function AsideMessages(')[0];
+  const overlay = source.split('function AsideOverlay(')[1].split('function focusComposer(')[0];
+  const preview = source.split('function AsidePreview(')[1].split('function placeDock(')[0];
+  assert.match(preview, /onEdit\(index, event.currentTarget.getBoundingClientRect\(\)\)/);
+  assert.match(dock, /onEdit: \(index, rect\) => \{ setExpanded\(false\); onEdit\(index, rect\); \}/);
+  assert.match(overlay, /access.openAnnotation = openAnnotation/);
+  assert.match(overlay, /onClick: \(\) => openAnnotation\(marker.index\)/);
+  assert.match(overlay, /openEditor\(\{\s*text: annotation.text,/);
+  assert.match(overlay, /rect: rect !== undefined && rect.bottom >= bounds.top && rect.top <= bounds.bottom \? rect : fallbackRect/);
+  assert.doesNotMatch(source, /AsideDockHost|dsh-aside-dock-editor|--dsh-aside-editor-/);
+});
+
+test('composer and sent annotations share one hover preview layout', () => {
+  const dock = source.split('function AsideDock(')[1].split('function AsideMessages(')[0];
+  const sent = source.split('function AsideMessages(')[1].split('function contentText(')[0];
+  const preview = source.split('function AsidePreview(')[1].split('function placeDock(')[0];
+  assert.match(dock, /h\(AsidePreview, \{\s*annotations, locale, className: 'dsh-aside-list'/);
+  assert.match(sent, /h\(AsidePreview, \{ annotations, locale, className: 'dsh-aside-card-body' \}\)/);
+  assert.match(source, /\.dsh-aside-preview\{[^}]*width:min\(460px,calc\(100vw - 32px\)\)/);
+  assert.match(dock, /window.innerWidth - 16 - dockRef.current.getBoundingClientRect\(\).left - list.offsetWidth/);
+  assert.match(preview, /onRemove === undefined \? null/);
+  assert.doesNotMatch(source, /dsh-aside-list-quote|dsh-aside-list-row/);
+});
+
 test('sent annotation is a hover pill positioned after attachments', () => {
   const sent = source.split('function AsideMessages(')[1].split('function contentText(')[0];
   assert.equal(api.placeSentPill({ top: 100 }, { bottom: 230 }), 138);
@@ -178,9 +203,9 @@ test('composer annotation sits beside an image or below a crowded attachment rai
   const image = { right: 184, bottom: 230, width: 64 };
   const dock = { width: 140, height: 30 };
   assert.deepEqual(api.placeDock(card, rail, image, dock),
-    { left: 94, top: 100, editorTop: 138, inline: true });
+    { left: 94, top: 100, inline: true });
   assert.deepEqual(api.placeDock({ ...card, right: 280 }, { ...rail, right: 280 }, image, dock),
-    { left: 14, top: 138, editorTop: 174, inline: false });
+    { left: 14, top: 138, inline: false });
   assert.deepEqual(api.placeDock(card, undefined, undefined, dock),
-    { left: 14, top: 8, editorTop: 44, inline: false });
+    { left: 14, top: 8, inline: false });
 });
