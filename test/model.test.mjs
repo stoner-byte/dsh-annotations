@@ -37,6 +37,45 @@ test('annotation payload survives the model-facing round trip', () => {
   assert.deepEqual(parsed, { annotations, start: 0, end: xml.length });
 });
 
+test('annotation copy follows the DSH general language setting and switches live', async () => {
+  let active = 'en';
+  let changed;
+  const locale = api.localeFace({
+    getSnapshot: () => ({ active }),
+    subscribe: listener => { changed = listener; return () => { changed = undefined; }; },
+  });
+  assert.equal(locale.getSnapshot(), 'en');
+  let updates = 0;
+  const unsubscribe = locale.subscribe(() => { updates += 1; });
+  active = 'zh-CN';
+  changed();
+  assert.equal(locale.getSnapshot(), 'zh');
+  assert.equal(updates, 1);
+  active = 'en-US';
+  changed();
+  assert.equal(locale.getSnapshot(), 'en');
+  assert.equal(api.annotationCount(1, api.MESSAGES.en), '1 annotation');
+  assert.equal(api.annotationCount(2, api.MESSAGES.en), '2 annotations');
+  assert.equal(api.annotationCount(1, api.MESSAGES.zh), '1 条注释');
+  unsubscribe();
+  assert.equal(changed, undefined);
+
+  for (const name of ['AnnotationDock', 'AnnotationMessages', 'AnnotationOverlay']) {
+    const component = source.split(`function ${name}(`)[1].split('\n    function ')[0];
+    assert.match(component, /useSyncExternalStore\(locale.subscribe, locale.getSnapshot\)/);
+  }
+  const overlay = source.split('function AnnotationOverlay(')[1].split('function focusComposer(')[0];
+  for (const key of ['unavailable', 'wrongConversationSave', 'changedSave', 'saveFailed', 'wrongConversationRemove', 'changedRemove']) {
+    for (const language of ['zh', 'en']) assert.equal(typeof api.MESSAGES[language][key], 'string');
+    assert.ok(overlay.includes(`messages.${key}`));
+  }
+  assert.match(overlay, /\[access, bar, language\]/);
+  assert.doesNotMatch(source, /document\.documentElement\.lang|navigator\.language|currentLocale\(/);
+  const manifest = JSON.parse(await readFile(fileURLToPath(new URL('../package.json', import.meta.url)), 'utf8'));
+  assert.ok(manifest.dsh.client.inject.includes('@deepseek-ai/dsh-client-locale'));
+  assert.ok(module.factory((name) => name === 'react' ? react : { createPortal: node => node }).inject.includes('locale'));
+});
+
 test('selection toolbar is agent-only and offers only the annotation action', () => {
   const overlay = source.split('function AnnotationOverlay(')[1].split('function focusComposer(')[0];
   assert.match(source, /descriptor\.source !== 'assistant'/);
@@ -366,8 +405,8 @@ test('composer and sent annotations share one hover preview layout', () => {
   const dock = source.split('function AnnotationDock(')[1].split('function AnnotationMessages(')[0];
   const sent = source.split('function AnnotationMessages(')[1].split('function contentText(')[0];
   const preview = source.split('function AnnotationPreview(')[1].split('function placeDock(')[0];
-  assert.match(dock, /h\(AnnotationPreview, \{\s*annotations, locale, className: 'dsh-annotations-list'/);
-  assert.match(sent, /h\(AnnotationPreview, \{ annotations, locale, className: 'dsh-annotations-card-body' \}\)/);
+  assert.match(dock, /h\(AnnotationPreview, \{\s*annotations, locale: language, className: 'dsh-annotations-list'/);
+  assert.match(sent, /h\(AnnotationPreview, \{ annotations, locale: language, className: 'dsh-annotations-card-body' \}\)/);
   assert.match(source, /\.dsh-annotations-preview\{[^}]*width:min\(320px,calc\(100vw - 32px\)\)/);
   assert.match(source, /\.dsh-annotations-dock:has\(\.dsh-annotations-list\),\.dsh-annotations-card:has\(\.dsh-annotations-card-body\)\{z-index:6\}/);
   assert.match(source, /\.dsh-annotations-preview\{[^}]*background:var\(--dsw-alias-bg-layer-1,Canvas\)/);

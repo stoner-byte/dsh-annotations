@@ -117,24 +117,38 @@ window.__ModuleLoader__.load({
 
     const MESSAGES = {
       zh: {
-        add: '添加到对话', annotations: '条注释',
-        commentPlaceholder: '添加可选评论…', commentLabel: '用户评论', cancel: '取消', save: '保存', remove: '删除',
+        add: '添加到对话', annotation: '条注释', annotations: '条注释',
+        commentPlaceholder: '添加可选评论…', cancel: '取消', save: '保存', remove: '删除',
         clearAll: '清除全部注释', clearFailed: '无法清除注释。',
+        unavailable: '当前对话中找不到选中的文字。',
+        wrongConversationSave: '请返回原对话后再保存这条注释。',
+        changedSave: '注释已更改，请重新打开后再保存。',
+        saveFailed: '无法保存注释。',
+        wrongConversationRemove: '请返回原对话后再修改这条注释。',
+        changedRemove: '注释已更改，请重新打开后再删除。',
       },
       en: {
-        add: 'Add to chat', annotations: 'annotations',
-        commentPlaceholder: 'Add an optional comment…', commentLabel: 'Comment', cancel: 'Cancel', save: 'Save', remove: 'Remove',
+        add: 'Add to chat', annotation: 'annotation', annotations: 'annotations',
+        commentPlaceholder: 'Add an optional comment…', cancel: 'Cancel', save: 'Save', remove: 'Remove',
         clearAll: 'Delete all annotations', clearFailed: 'Could not delete the annotations.',
+        unavailable: 'The selected text is not available in this conversation.',
+        wrongConversationSave: 'Return to the original conversation before saving this annotation.',
+        changedSave: 'The annotation changed. Reopen it before saving.',
+        saveFailed: 'The annotation could not be saved.',
+        wrongConversationRemove: 'Return to the original conversation before changing this annotation.',
+        changedRemove: 'The annotation changed. Reopen it before deleting.',
       },
     };
 
-    function currentLocale() {
-      try {
-        const lang = (document.documentElement.lang || navigator.language || 'en').toLowerCase();
-        return lang.startsWith('zh') ? 'zh' : 'en';
-      } catch {
-        return 'en';
-      }
+    function localeFace(service) {
+      return {
+        subscribe: listener => service.subscribe(listener),
+        getSnapshot: () => service.getSnapshot().active.toLowerCase().startsWith('zh') ? 'zh' : 'en',
+      };
+    }
+
+    function annotationCount(count, messages) {
+      return `${count} ${count === 1 ? messages.annotation : messages.annotations}`;
     }
 
     // ---------------------------------------------------------------- pure logic
@@ -813,7 +827,8 @@ window.__ModuleLoader__.load({
     }
 
     function AnnotationDock({ access, locale, onEdit }) {
-      const messages = MESSAGES[locale];
+      const language = useSyncExternalStore(locale.subscribe, locale.getSnapshot);
+      const messages = MESSAGES[language];
       const annotations = useAnnotations(access);
       const [expanded, setExpanded] = useState(false);
       const dockRef = useRef(null);
@@ -921,14 +936,14 @@ window.__ModuleLoader__.load({
             strokeWidth: 1.6, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true },
             h('path', { d: 'M5 3.75h10a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H8l-3.5 2v-2A2 2 0 0 1 3 13.75v-8a2 2 0 0 1 2-2Z' }),
             h('path', { d: 'M6.5 8h7m-7 3h4.5' })),
-          h('span', { className: 'dsh-annotations-capsule-text' }, `${String(annotations.length)} ${messages.annotations}`),
+          h('span', { className: 'dsh-annotations-capsule-text' }, annotationCount(annotations.length, messages)),
         ),
         h('button', {
           type: 'button', className: 'dsh-annotations-delete dsh-annotations-close',
           'aria-label': messages.clearAll, title: messages.clearAll, onClick: clear,
         }, h(IconTrash)),
         expanded ? h(AnnotationPreview, {
-          annotations, locale, className: 'dsh-annotations-list',
+          annotations, locale: language, className: 'dsh-annotations-list',
           onEdit: (index) => { setExpanded(false); onEdit(index); },
           onRemove: remove,
         }) : null,
@@ -936,9 +951,10 @@ window.__ModuleLoader__.load({
     }
 
     function AnnotationMessages({ annotations, locale }) {
+      const language = useSyncExternalStore(locale.subscribe, locale.getSnapshot);
       const [expanded, setExpanded] = useState(false);
       const cardRef = useRef(null);
-      const messages = MESSAGES[locale];
+      const messages = MESSAGES[language];
       useLayoutEffect(() => {
         const message = cardRef.current?.closest('.dsh-annotations-message');
         const attachments = message?.querySelector('[data-message-attachments]');
@@ -982,9 +998,9 @@ window.__ModuleLoader__.load({
             strokeWidth: 1.6, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true },
             h('path', { d: 'M5 3.75h10a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H8l-3.5 2v-2A2 2 0 0 1 3 13.75v-8a2 2 0 0 1 2-2Z' }),
             h('path', { d: 'M6.5 8h7m-7 3h4.5' })),
-          `${String(annotations.length)} ${messages.annotations}`,
+          annotationCount(annotations.length, messages),
         ),
-        expanded ? h(AnnotationPreview, { annotations, locale, className: 'dsh-annotations-card-body' }) : null,
+        expanded ? h(AnnotationPreview, { annotations, locale: language, className: 'dsh-annotations-card-body' }) : null,
       );
     }
 
@@ -1044,7 +1060,8 @@ window.__ModuleLoader__.load({
     }
 
     function AnnotationOverlay({ access, locale }) {
-      const messages = MESSAGES[locale];
+      const language = useSyncExternalStore(locale.subscribe, locale.getSnapshot);
+      const messages = MESSAGES[language];
       const annotations = useAnnotations(access);
       const [bar, setBar] = useState(null);
       const [editor, setEditor] = useState(null);
@@ -1281,7 +1298,7 @@ window.__ModuleLoader__.load({
         };
         const current = () => request === pendingOpenRef.current && sessionId === access.currentSessionId()
           && JSON.stringify(access.currentAnnotations()[index]) === original;
-        const unavailable = () => access.currentInput()?.notify?.('error', 'The selected text is not available in this conversation.');
+        const unavailable = () => access.currentInput()?.notify?.('error', messages.unavailable);
         const show = () => {
           if (!current()) return;
           const target = locate();
@@ -1307,7 +1324,7 @@ window.__ModuleLoader__.load({
       useEffect(() => {
         access.openAnnotation = openAnnotation;
         return () => { if (access.openAnnotation === openAnnotation) delete access.openAnnotation; };
-      }, [access, bar]);
+      }, [access, bar, language]);
 
       const save = (comment) => {
         const current = editor;
@@ -1315,13 +1332,13 @@ window.__ModuleLoader__.load({
         const seed = current.seed;
         const input = access.currentInput();
         if (seed.sessionId !== access.currentSessionId()) {
-          input?.notify?.('error', 'Return to the original conversation before saving this annotation.');
+          input?.notify?.('error', messages.wrongConversationSave);
           return;
         }
         if (input === undefined) return;
         const existing = access.currentAnnotations();
         if (seed.index !== undefined && JSON.stringify(existing[seed.index]) !== seed.original) {
-          input.notify?.('error', 'The annotation changed. Reopen it before saving.');
+          input.notify?.('error', messages.changedSave);
           return;
         }
         const annotation = {
@@ -1334,7 +1351,7 @@ window.__ModuleLoader__.load({
           ? [...existing, annotation]
           : existing.map((value, position) => position === seed.index ? annotation : value);
         if (!writeAnnotations(input, next)) {
-          input.notify?.('error', 'The annotation could not be saved.');
+          input.notify?.('error', messages.saveFailed);
           return;
         }
         setEditor(null);
@@ -1346,13 +1363,13 @@ window.__ModuleLoader__.load({
         if (current === null || current.seed.index === undefined) return;
         const input = access.currentInput();
         if (current.seed.sessionId !== access.currentSessionId()) {
-          input?.notify?.('error', 'Return to the original conversation before changing this annotation.');
+          input?.notify?.('error', messages.wrongConversationRemove);
           return;
         }
         if (input === undefined) return;
         const existing = access.currentAnnotations();
         if (JSON.stringify(existing[current.seed.index]) !== current.seed.original) {
-          input.notify?.('error', 'The annotation changed. Reopen it before deleting.');
+          input.notify?.('error', messages.changedRemove);
           return;
         }
         if (!writeAnnotations(input, existing.filter((_, position) => position !== current.seed.index))) return;
@@ -1366,7 +1383,7 @@ window.__ModuleLoader__.load({
           top: `${String(editor.placed.top)}px`, left: `${String(editor.placed.left)}px`, zIndex: editorScroll === undefined ? 81 : 5 },
       },
         h(AnnotationEditor, {
-          locale,
+          locale: language,
           draft: editor.seed.text,
           limits: editorSize(readBounds(editorScroll)),
           comment,
@@ -1400,7 +1417,7 @@ window.__ModuleLoader__.load({
     // ---------------------------------------------------------------- registration
 
     function apply(ctx) {
-      const locale = currentLocale();
+      const locale = localeFace(ctx.locale);
       const access = createAccess(ctx);
 
       ctx.effect(() => {
@@ -1465,9 +1482,12 @@ window.__ModuleLoader__.load({
     }
 
     return {
-      inject: ['sessions', 'slots', 'conversation', 'inputTriggers', 'uiConversation'],
+      inject: ['sessions', 'slots', 'conversation', 'inputTriggers', 'uiConversation', 'locale'],
       apply,
       __test: {
+        localeFace,
+        MESSAGES,
+        annotationCount,
         offsetsOf,
         rangeEndingInHost,
         serializeAnnotations,
