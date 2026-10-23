@@ -116,9 +116,20 @@ test('the toolbar prefers above, flips below, and stays inside the viewport', ()
   assert.equal(editor.top, 300 - 150 - 18);
 });
 
-test('badge sits above the end of selected text', () => {
-  assert.deepEqual(api.placeMarker({ top: 335, right: 739 }, { width: 1280, height: 577 }),
-    { top: 313, left: 743 });
+test('badge uses scroll-content coordinates inside the scrollport', () => {
+  const scroll = {
+    getBoundingClientRect: () => ({ top: 80, left: 100 }),
+    clientTop: 1, clientLeft: 2, scrollTop: 260, scrollLeft: 0,
+  };
+  assert.deepEqual(api.placeMarker({ top: 335, right: 739 }, scroll), { top: 492, left: 641 });
+  scroll.scrollTop += 100;
+  assert.deepEqual(api.placeMarker({ top: 235, right: 739 }, scroll), { top: 492, left: 641 });
+  const overlay = source.split('function AsideOverlay(')[1].split('function focusComposer(')[0];
+  assert.match(source, /\.dsh-aside-marker\{position:absolute/);
+  assert.match(overlay, /scroll.append\(marker\)/);
+  assert.match(overlay, /for \(const marker of markers.values\(\)\) marker.remove\(\)/);
+  assert.match(overlay, /scroll.style.position = previousPosition/);
+  assert.doesNotMatch(overlay, /addEventListener\('scroll'|markers.map\(/);
 });
 
 test('composer annotation preview opens on hover without click-to-toggle', () => {
@@ -138,7 +149,7 @@ test('composer entries and transcript badges share one floating editor', () => {
   assert.match(preview, /onEdit\(index, event.currentTarget.getBoundingClientRect\(\)\)/);
   assert.match(dock, /onEdit: \(index, rect\) => \{ setExpanded\(false\); onEdit\(index, rect\); \}/);
   assert.match(overlay, /access.openAnnotation = openAnnotation/);
-  assert.match(overlay, /onClick: \(\) => openAnnotation\(marker.index\)/);
+  assert.match(overlay, /marker.addEventListener\('click', \(\) => access.openAnnotation\?\.\(index\)\)/);
   assert.match(overlay, /openEditor\(\{\s*text: annotation.text,/);
   assert.match(overlay, /rect: rect !== undefined && rect.bottom >= bounds.top && rect.top <= bounds.bottom \? rect : fallbackRect/);
   assert.doesNotMatch(source, /AsideDockHost|dsh-aside-dock-editor|--dsh-aside-editor-/);

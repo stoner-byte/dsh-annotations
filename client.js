@@ -110,7 +110,7 @@ window.__ModuleLoader__.load({
 .dsh-aside-button-primary{background:var(--dsh-accent,#3b82f6);color:#fff}
 .dsh-aside-button-primary:hover{background:color-mix(in srgb, var(--dsh-accent,#3b82f6) 88%, #fff)}
 .dsh-aside-button-danger{color:#dc2626}
-.dsh-aside-marker{position:fixed;z-index:70;display:grid;place-items:center;width:18px;height:18px;border-radius:99px;
+.dsh-aside-marker{position:absolute;z-index:70;display:grid;place-items:center;width:18px;height:18px;border-radius:99px;
   background:var(--dsh-accent,#3b82f6);color:#fff;font:600 10.5px/1 var(--dsh-font-family,system-ui,sans-serif);
   cursor:pointer;border:none;box-shadow:0 2px 6px rgba(0,0,0,.2);padding:0}
 .dsh-aside-marker:focus-visible{outline:2px solid color-mix(in srgb, var(--dsh-accent,#3b82f6) 45%, #fff);outline-offset:1px}
@@ -372,10 +372,11 @@ window.__ModuleLoader__.load({
       };
     }
 
-    function placeMarker(last, viewport) {
+    function placeMarker(last, scroll) {
+      const rect = scroll.getBoundingClientRect();
       return {
-        top: clamp(last.top - MARKER_SIZE - 4, 0, viewport.height - MARKER_SIZE),
-        left: clamp(last.right + 4, 0, viewport.width - MARKER_SIZE - 4),
+        top: last.top - rect.top - scroll.clientTop + scroll.scrollTop - MARKER_SIZE - 4,
+        left: last.right - rect.left - scroll.clientLeft + scroll.scrollLeft + 4,
       };
     }
 
@@ -1123,51 +1124,75 @@ window.__ModuleLoader__.load({
       const annotations = useAnnotations(access);
       const [bar, setBar] = useState(null);
       const [editor, setEditor] = useState(null);
-      const [markers, setMarkers] = useState([]);
       const editorRefState = useRef(editor);
       editorRefState.current = editor;
 
-      const computeMarkers = useCallback(() => {
-        const next = [];
-        const highlightRanges = [];
-        annotations.forEach((annotation, index) => {
-          if (annotation.anchor === undefined) return;
-          const found = rootOfAnchor(annotation.anchor.nodeKey);
-          if (found === undefined) return;
-          const range = rangeOfAnchor(found.host, annotation.anchor);
-          if (range === undefined) return;
-          highlightRanges.push(range);
-          const rects = [...range.getClientRects()].filter(rect => rect.height > 0);
-          if (rects.length === 0) return;
-          const last = rects[rects.length - 1];
-          next.push({ index, ...placeMarker(last, { width: window.innerWidth, height: window.innerHeight }) });
-        });
-        if (typeof CSS !== 'undefined' && CSS.highlights !== undefined && typeof Highlight !== 'undefined') {
-          CSS.highlights.set(HIGHLIGHT_ALL, new Highlight(...highlightRanges));
-        }
-        setMarkers(next);
-      }, [annotations]);
-
       useEffect(() => {
+        // ponytail: one transcript scrollport; nested independent scrollers need their own marker layer.
+        const scroll = document.querySelector('[data-conversation-scroll]');
+        if (!(scroll instanceof HTMLElement)) return;
+        const previousPosition = scroll.style.position;
+        const positioned = getComputedStyle(scroll).position === 'static';
+        if (positioned) scroll.style.position = 'relative';
+        const markers = new Map();
+        const computeMarkers = () => {
+          const active = new Set();
+          const highlightRanges = [];
+          annotations.forEach((annotation, index) => {
+            if (annotation.anchor === undefined) return;
+            const found = rootOfAnchor(annotation.anchor.nodeKey);
+            if (found === undefined || !scroll.contains(found.host)) return;
+            const range = rangeOfAnchor(found.host, annotation.anchor);
+            if (range === undefined) return;
+            highlightRanges.push(range);
+            const rects = [...range.getClientRects()].filter(rect => rect.height > 0);
+            if (rects.length === 0) return;
+            let marker = markers.get(index);
+            if (marker === undefined) {
+              marker = document.createElement('button');
+              marker.type = 'button';
+              marker.className = 'dsh-aside-marker';
+              marker.dataset.asideSkip = '';
+              marker.textContent = String(index + 1);
+              marker.title = String(index + 1);
+              marker.addEventListener('click', () => access.openAnnotation?.(index));
+              markers.set(index, marker);
+            }
+            if (marker.parentElement !== scroll) scroll.append(marker);
+            const placed = placeMarker(rects[rects.length - 1], scroll);
+            marker.style.top = `${String(placed.top)}px`;
+            marker.style.left = `${String(placed.left)}px`;
+            active.add(index);
+          });
+          for (const [index, marker] of markers) {
+            if (!active.has(index)) { marker.remove(); markers.delete(index); }
+          }
+          if (typeof CSS !== 'undefined' && CSS.highlights !== undefined && typeof Highlight !== 'undefined') {
+            CSS.highlights.set(HIGHLIGHT_ALL, new Highlight(...highlightRanges));
+          }
+        };
         computeMarkers();
         let frame;
         const schedule = () => {
           if (frame !== undefined) return;
           frame = window.requestAnimationFrame(() => { frame = undefined; computeMarkers(); });
         };
-        window.addEventListener('scroll', schedule, true);
         window.addEventListener('resize', schedule);
         const root = document.querySelector('[data-conversation-session]');
         const observer = typeof MutationObserver === 'undefined' || root === null ? undefined : new MutationObserver(schedule);
         observer?.observe(root, { childList: true, subtree: true, characterData: true });
+        const resize = typeof ResizeObserver === 'undefined' || root === null ? undefined : new ResizeObserver(schedule);
+        if (resize !== undefined) resize.observe(root);
         return () => {
           if (frame !== undefined) window.cancelAnimationFrame(frame);
-          window.removeEventListener('scroll', schedule, true);
           window.removeEventListener('resize', schedule);
           observer?.disconnect();
+          resize?.disconnect();
+          for (const marker of markers.values()) marker.remove();
+          if (positioned && scroll.style.position === 'relative') scroll.style.position = previousPosition;
           if (typeof CSS !== 'undefined' && CSS.highlights !== undefined) CSS.highlights.delete(HIGHLIGHT_ALL);
         };
-      }, [computeMarkers]);
+      }, [annotations, access]);
 
       useEffect(() => {
         const onPointerDown = (event) => {
@@ -1348,14 +1373,6 @@ window.__ModuleLoader__.load({
             ...(editor.seed.index === undefined ? {} : { onRemove: remove }),
           }),
         ),
-        markers.map(marker => h('button', {
-          key: `aside-marker-${String(marker.index)}`,
-          type: 'button',
-          className: 'dsh-aside-marker',
-          style: { top: `${String(marker.top)}px`, left: `${String(marker.left)}px` },
-          title: `${String(marker.index + 1)}`,
-          onClick: () => openAnnotation(marker.index),
-        }, String(marker.index + 1))),
       );
     }
 
