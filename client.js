@@ -2,6 +2,7 @@ window.__ModuleLoader__.load({
   id: 'dsh-aside',
   factory(require) {
     const React = require('react');
+    const { createPortal } = require('react-dom');
     const {
       createElement: h,
       useCallback,
@@ -87,7 +88,7 @@ window.__ModuleLoader__.load({
     const BAR_WIDTH = 320;
 
     const STYLES = `
-.dsh-aside-bar{box-sizing:border-box;position:fixed;z-index:80;display:flex;align-items:center;gap:2px;height:${BAR_HEIGHT}px;padding:3px;border-radius:10px;
+.dsh-aside-bar{box-sizing:border-box;position:absolute;z-index:5;display:flex;align-items:center;gap:2px;height:${BAR_HEIGHT}px;padding:3px;border-radius:10px;
   background:var(--dsh-surface-raised,color-mix(in srgb, Canvas 92%, CanvasText 8%));color:inherit;
   border:1px solid var(--dsh-border-subtle,rgba(127,127,127,.28));box-shadow:0 8px 24px rgba(0,0,0,.16);
   font:500 12.5px/1.2 var(--dsh-font-family,system-ui,sans-serif);white-space:nowrap}
@@ -372,6 +373,28 @@ window.__ModuleLoader__.load({
       };
     }
 
+    function placeInScroll(placed, scroll) {
+      const rect = scroll.getBoundingClientRect();
+      return {
+        top: placed.top - rect.top - scroll.clientTop + scroll.scrollTop,
+        left: placed.left - rect.left - scroll.clientLeft + scroll.scrollLeft,
+      };
+    }
+
+    function positionFloatingBox(box, rect, scroll) {
+      const placed = placeFloating(rect, box.getBoundingClientRect(), readBounds(scroll));
+      const point = scroll === undefined ? placed : placeInScroll(placed, scroll);
+      box.style.top = `${String(point.top)}px`;
+      box.style.left = `${String(point.left)}px`;
+      return point;
+    }
+
+    function positionAtAnchor(box, rect, scroll, offset) {
+      const anchor = placeInScroll({ top: rect.top, left: rect.left }, scroll);
+      box.style.top = `${String(anchor.top + offset.top)}px`;
+      box.style.left = `${String(anchor.left + offset.left)}px`;
+    }
+
     function placeMarker(last, scroll) {
       const rect = scroll.getBoundingClientRect();
       return {
@@ -642,12 +665,16 @@ window.__ModuleLoader__.load({
       };
     }
 
-    function readBounds() {
-      const scroll = document.querySelector('[data-conversation-scroll]');
+    function readBounds(container) {
+      const scroll = container ?? document.querySelector('[data-conversation-scroll]');
       const seat = document.querySelector('[data-composer-seat]');
-      const top = scroll === null ? 0 : scroll.getBoundingClientRect().top;
+      const rect = scroll?.getBoundingClientRect();
       const bottom = seat === null ? window.innerHeight : seat.getBoundingClientRect().top;
-      return { top: Math.max(top, 0), bottom: Math.min(bottom, window.innerHeight), left: 0, right: window.innerWidth };
+      return {
+        top: Math.max(rect?.top ?? 0, 0), bottom: Math.min(bottom, rect?.bottom ?? window.innerHeight, window.innerHeight),
+        left: container === undefined ? 0 : Math.max(rect.left, 0),
+        right: container === undefined ? window.innerWidth : Math.min(rect.right, window.innerWidth),
+      };
     }
 
     // ---------------------------------------------------------------- components
@@ -668,9 +695,8 @@ window.__ModuleLoader__.load({
         h('path', { d: 'M13.5 8A5.5 5.5 0 1 1 8 2.5H13.5V8Z' }), h('path', { d: 'M8.2 6.1h1.6' }));
     }
 
-    function AnnotationEditor({ locale, draft, anchor, initialComment, onSave, onCancel, onRemove }) {
+    function AnnotationEditor({ locale, draft, comment, onCommentChange, onSave, onCancel, onRemove }) {
       const messages = MESSAGES[locale];
-      const [comment, setComment] = useState(initialComment ?? '');
       const areaRef = useRef(null);
       const save = () => onSave(comment.trim() === '' ? undefined : comment.trim());
       useEffect(() => {
@@ -692,7 +718,7 @@ window.__ModuleLoader__.load({
           value: comment,
           placeholder: messages.commentPlaceholder,
           'aria-label': messages.commentPlaceholder,
-          onChange: event => setComment(event.target.value),
+          onChange: event => onCommentChange(event.target.value),
         }),
         h('div', { className: 'dsh-aside-editor-actions' },
           onRemove === undefined ? null : h('button', { type: 'button', className: 'dsh-aside-button dsh-aside-button-danger', onClick: onRemove }, messages.remove),
@@ -1124,8 +1150,29 @@ window.__ModuleLoader__.load({
       const annotations = useAnnotations(access);
       const [bar, setBar] = useState(null);
       const [editor, setEditor] = useState(null);
+      const [comment, setComment] = useState('');
+      const editorScroll = editor?.scroll?.isConnected && editor.seed.sessionId === access.currentSessionId() ? editor.scroll : undefined;
       const editorRefState = useRef(editor);
       editorRefState.current = editor;
+      const barBoxRef = useRef(null);
+      const editorBoxRef = useRef(null);
+      const editorOffsetRef = useRef(null);
+      const repositionRef = useRef(null);
+      repositionRef.current = () => {
+        const currentRange = (anchor, range) => {
+          const found = anchor === undefined ? undefined : rootOfAnchor(anchor.nodeKey);
+          return (found === undefined ? undefined : rangeOfAnchor(found.host, anchor))
+            ?? (range?.commonAncestorContainer.isConnected ? range : undefined);
+        };
+        if (bar?.scroll && barBoxRef.current !== null) {
+          const rect = currentRange(bar.anchor, bar.range)?.getBoundingClientRect();
+          if (rect !== undefined) positionAtAnchor(barBoxRef.current, rect, bar.scroll, bar.offset);
+        }
+        if (editorScroll !== undefined && editorBoxRef.current !== null && editorOffsetRef.current !== null) {
+          const rect = currentRange(editor.seed.anchor, editor.seed.range)?.getBoundingClientRect();
+          if (rect !== undefined) positionAtAnchor(editorBoxRef.current, rect, editorScroll, editorOffsetRef.current);
+        }
+      };
 
       useEffect(() => {
         // ponytail: one transcript scrollport; nested independent scrollers need their own marker layer.
@@ -1170,6 +1217,7 @@ window.__ModuleLoader__.load({
           if (typeof CSS !== 'undefined' && CSS.highlights !== undefined && typeof Highlight !== 'undefined') {
             CSS.highlights.set(HIGHLIGHT_ALL, new Highlight(...highlightRanges));
           }
+          repositionRef.current?.();
         };
         computeMarkers();
         let frame;
@@ -1198,6 +1246,10 @@ window.__ModuleLoader__.load({
         const onPointerDown = (event) => {
           const target = event.target;
           if (target instanceof Element && (target.closest('.dsh-aside-bar, .dsh-aside-editor, .dsh-aside-marker, .dsh-aside-dock') !== null)) return;
+          // ponytail: touches inside the transcript keep the editor; distinguish taps if tap-to-dismiss is needed.
+          if (editorRefState.current !== null && target instanceof Element
+            && (target.matches('[data-conversation-scroll]')
+              || event.pointerType !== 'mouse' && target.closest('[data-conversation-scroll]') !== null)) return;
           setBar(null);
           setEditor(null);
         };
@@ -1207,9 +1259,12 @@ window.__ModuleLoader__.load({
           if (chat === undefined) { setBar(null); return; }
           const value = captureSelection(chat);
           if (value === undefined) { setBar(null); return; }
-          const bounds = readBounds();
-          const placed = placeFloating(value.rect, { width: BAR_WIDTH, height: BAR_HEIGHT }, bounds);
-          setBar({ ...value, sessionId: access.currentSessionId(), placed });
+          const scroll = document.querySelector('[data-conversation-scroll]');
+          if (!(scroll instanceof HTMLElement) || !scroll.contains(value.range.commonAncestorContainer)) { setBar(null); return; }
+          const placed = placeInScroll(placeFloating(value.rect, { width: BAR_WIDTH, height: BAR_HEIGHT }, readBounds(scroll)), scroll);
+          const anchor = placeInScroll({ top: value.rect.top, left: value.rect.left }, scroll);
+          setBar({ ...value, sessionId: access.currentSessionId(), scroll, placed,
+            offset: { top: placed.top - anchor.top, left: placed.left - anchor.left } });
         };
         let timer;
         const schedule = () => {
@@ -1252,24 +1307,25 @@ window.__ModuleLoader__.load({
         };
       }, [access]);
 
-      const editorBoxRef = useRef(null);
-      useEffect(() => {
+      useLayoutEffect(() => {
         const box = editorBoxRef.current;
         if (box === null || editor === null) return;
-        const rect = editor.seed.rect ?? bar?.rect;
+        const rect = (editorScroll === undefined ? undefined : editor.seed.range?.getBoundingClientRect()) ?? editor.seed.rect ?? bar?.rect;
         if (rect === undefined) return;
-        const { width, height } = box.getBoundingClientRect();
-        const placed = placeFloating(rect, { width, height }, readBounds());
-        box.style.top = `${String(placed.top)}px`;
-        box.style.left = `${String(placed.left)}px`;
-      }, [editor]);
+        const placed = positionFloatingBox(box, rect, editorScroll);
+        if (editorScroll === undefined) { editorOffsetRef.current = null; return; }
+        const anchor = placeInScroll({ top: rect.top, left: rect.left }, editorScroll);
+        editorOffsetRef.current = { top: placed.top - anchor.top, left: placed.left - anchor.left };
+      }, [editor, editorScroll]);
 
       const openEditor = (seed) => {
         const bars = bar;
-        const bounds = readBounds();
+        const scroll = seed?.scroll;
+        const bounds = readBounds(scroll);
         const rect = seed !== undefined && seed.rect !== undefined ? seed.rect : bars?.rect ?? { top: bounds.top + 80, bottom: bounds.top + 80, left: 24, right: 24 };
         const placed = placeFloating(rect, { width: 320, height: 150 }, bounds);
-        setEditor({ seed, placed: { top: placed.top, left: placed.left } });
+        setComment(seed.comment ?? '');
+        setEditor({ seed, scroll, placed: scroll === undefined ? placed : placeInScroll(placed, scroll) });
         setBar(null);
       };
       const openAnnotation = (index, fallbackRect) => {
@@ -1283,9 +1339,10 @@ window.__ModuleLoader__.load({
           text: annotation.text,
           comment: annotation.comment,
           anchor: annotation.anchor,
-          sessionId: annotation.sessionId,
+          sessionId: annotation.sessionId ?? access.currentSessionId(),
           index,
           rect: rect !== undefined && rect.bottom >= bounds.top && rect.top <= bounds.bottom ? rect : fallbackRect,
+          ...(fallbackRect === undefined && range !== undefined ? { range, scroll: found.root.querySelector('[data-conversation-scroll]') ?? undefined } : {}),
         });
       };
       useEffect(() => {
@@ -1298,6 +1355,10 @@ window.__ModuleLoader__.load({
         if (current === null) return;
         const seed = current.seed;
         const input = access.currentInput();
+        if (seed.sessionId !== access.currentSessionId()) {
+          input?.notify?.('error', 'Return to the original conversation before saving this annotation.');
+          return;
+        }
         if (input === undefined) return;
         const existing = access.currentAnnotations();
         const annotation = {
@@ -1320,6 +1381,10 @@ window.__ModuleLoader__.load({
         const current = editor;
         if (current === null || current.seed.index === undefined) return;
         const input = access.currentInput();
+        if (current.seed.sessionId !== access.currentSessionId()) {
+          input?.notify?.('error', 'Return to the original conversation before changing this annotation.');
+          return;
+        }
         if (input === undefined) return;
         writeAnnotations(input, access.currentAnnotations().filter((_, position) => position !== current.seed.index));
         setEditor(null);
@@ -1348,31 +1413,35 @@ window.__ModuleLoader__.load({
         });
       };
 
+      const floatingEditor = editor === null ? null : h('div', {
+        ref: editorBoxRef,
+        style: { position: editorScroll === undefined ? 'fixed' : 'absolute',
+          top: `${String(editor.placed.top)}px`, left: `${String(editor.placed.left)}px`, zIndex: editorScroll === undefined ? 81 : 5 },
+      },
+        h(AnnotationEditor, {
+          locale,
+          draft: editor.seed.text,
+          comment,
+          onCommentChange: setComment,
+          onSave: save,
+          onCancel: () => { setEditor(null); focusComposer(); },
+          ...(editor.seed.index === undefined ? {} : { onRemove: remove }),
+        }),
+      );
       return h(React.Fragment, null,
-        bar === null ? null : h('div', {
+        bar === null ? null : createPortal(h('div', {
+          ref: barBoxRef,
           className: 'dsh-aside-bar',
           role: 'toolbar',
           'aria-label': messages.aside,
           style: { top: `${String(bar.placed.top)}px`, left: `${String(bar.placed.left)}px` },
           onMouseDown: event => event.preventDefault(),
         },
-          h('button', { type: 'button', onClick: () => openEditor({ text: bar.text, anchor: bar.anchor, sessionId: bar.sessionId, rect: bar.rect }) },
+          h('button', { type: 'button', onClick: () => openEditor({ text: bar.text, anchor: bar.anchor, sessionId: bar.sessionId, range: bar.range, rect: bar.rect, scroll: bar.scroll }) },
             h(IconQuote), messages.add),
           h('button', { type: 'button', onClick: ask }, h(IconAsk), messages.ask),
-        ),
-        editor === null ? null : h('div', {
-          ref: editorBoxRef,
-          style: { position: 'fixed', top: `${String(editor.placed.top)}px`, left: `${String(editor.placed.left)}px`, zIndex: 81 },
-        },
-          h(AnnotationEditor, {
-            locale,
-            draft: editor.seed.text,
-            initialComment: editor.seed.comment,
-            onSave: save,
-            onCancel: () => { setEditor(null); focusComposer(); },
-            ...(editor.seed.index === undefined ? {} : { onRemove: remove }),
-          }),
-        ),
+        ), bar.scroll),
+        editorScroll === undefined ? floatingEditor : createPortal(floatingEditor, editorScroll),
       );
     }
 
@@ -1540,6 +1609,9 @@ window.__ModuleLoader__.load({
         readAnnotations,
         writeAnnotations,
         placeFloating,
+        readBounds,
+        placeInScroll,
+        positionAtAnchor,
         placeMarker,
         placeDock,
         placeSentPill,

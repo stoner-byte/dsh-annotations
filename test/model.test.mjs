@@ -23,6 +23,7 @@ const react = {
 };
 const api = module.factory((name) => {
   if (name === 'react') return react;
+  if (name === 'react-dom') return { createPortal: node => node };
   throw new Error(`unexpected module ${name}`);
 }).__test;
 
@@ -130,6 +131,38 @@ test('badge uses scroll-content coordinates inside the scrollport', () => {
   assert.match(overlay, /for \(const marker of markers.values\(\)\) marker.remove\(\)/);
   assert.match(overlay, /scroll.style.position = previousPosition/);
   assert.doesNotMatch(overlay, /addEventListener\('scroll'|markers.map\(/);
+});
+
+test('transcript controls use scroll coordinates and composer editor stays fixed', () => {
+  const scroll = {
+    getBoundingClientRect: () => ({ top: 80, left: 100, right: 500, bottom: 700 }),
+    clientTop: 1, clientLeft: 2, scrollTop: 260, scrollLeft: 40,
+  };
+  const previousDocument = globalThis.document;
+  const previousWindow = globalThis.window;
+  globalThis.document = { querySelector: selector => selector === '[data-composer-seat]'
+    ? { getBoundingClientRect: () => ({ top: 660 }) } : scroll };
+  globalThis.window = { innerHeight: 800, innerWidth: 1200 };
+  try {
+    assert.deepEqual(api.readBounds(scroll), { top: 80, bottom: 660, left: 100, right: 500 });
+    assert.deepEqual(api.readBounds(), { top: 80, bottom: 660, left: 0, right: 1200 });
+  } finally {
+    globalThis.document = previousDocument;
+    globalThis.window = previousWindow;
+  }
+  assert.deepEqual(api.placeInScroll({ top: 235, left: 400 }, scroll), { top: 414, left: 338 });
+  scroll.scrollTop += 100;
+  assert.deepEqual(api.placeInScroll({ top: 135, left: 400 }, scroll), { top: 414, left: 338 });
+  const box = { style: {} };
+  api.positionAtAnchor(box, { top: 135, left: 400 }, scroll, { top: -54, left: 2 });
+  assert.deepEqual(box.style, { top: '360px', left: '340px' });
+  const overlay = source.split('function AsideOverlay(')[1].split('function focusComposer(')[0];
+  assert.match(overlay, /bar === null \? null : createPortal\(h\('div'/);
+  assert.match(overlay, /createPortal\(floatingEditor, editorScroll\)/);
+  assert.match(overlay, /editorScroll === undefined \? 'fixed' : 'absolute'/);
+  assert.match(overlay, /seed\.sessionId !== access\.currentSessionId\(\)/);
+  assert.match(overlay, /event\.pointerType !== 'mouse'/);
+  assert.doesNotMatch(overlay, /addEventListener\('scroll'/);
 });
 
 test('composer annotation preview opens on hover without click-to-toggle', () => {
