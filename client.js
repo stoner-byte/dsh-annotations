@@ -66,7 +66,7 @@ window.__ModuleLoader__.load({
 .dsh-annotations-capsule-text{display:inline-block;min-width:0}
 .dsh-annotations-dock:hover .dsh-annotations-capsule-text,.dsh-annotations-dock:focus-within .dsh-annotations-capsule-text{
   mask-image:linear-gradient(to right,#000 calc(100% - 40px),transparent calc(100% - 14px))}
-.dsh-annotations-close{position:absolute;z-index:1;top:3px;right:7px;width:24px;height:24px;
+.dsh-annotations-close{position:absolute;z-index:1;top:3px;right:3px;width:24px;height:24px;
   border:1px solid var(--dsw-alias-border-l1,rgba(127,127,127,.25));background:var(--dsw-alias-bg-layer-1,Canvas);
   opacity:0;pointer-events:none;transition:opacity .14s ease,background-color .14s ease,color .14s ease}
 .dsh-annotations-dock:hover .dsh-annotations-close,.dsh-annotations-dock:focus-within .dsh-annotations-close{opacity:1;pointer-events:auto}

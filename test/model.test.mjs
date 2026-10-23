@@ -324,7 +324,7 @@ test('composer annotation preview opens on hover without click-to-toggle', () =>
   assert.match(dock, /h\('path', \{ d: 'M5 3\.75h10/);
   assert.match(source, /\.dsh-annotations-dock:hover \.dsh-annotations-capsule-text,[^}]+mask-image:linear-gradient\(to right,#000 calc\(100% - 40px\),transparent calc\(100% - 14px\)\)/);
   assert.match(source, /\.dsh-annotations-delete\{[^}]+border-radius:5px/);
-  assert.match(source, /\.dsh-annotations-close\{position:absolute;z-index:1;top:3px;right:7px;width:24px;height:24px/);
+  assert.match(source, /\.dsh-annotations-close\{position:absolute;z-index:1;top:3px;right:3px;width:24px;height:24px/);
   assert.match(dock, /className: 'dsh-annotations-delete dsh-annotations-close'/);
   assert.doesNotMatch(source, /dsh-annotations-capsule-count|padding:0 31px/);
   assert.match(dock, /onClick: clear/);
