@@ -25,6 +25,7 @@ window.__ModuleLoader__.load({
     const GAP = 18;
     const MARKER_SIZE = 18;
     const BAR_HEIGHT = 36;
+    const BAR_WIDTH = 140;
 
     const STYLES = `
 .dsh-annotations-bar{box-sizing:border-box;position:absolute;z-index:5;display:flex;align-items:center;gap:2px;height:${BAR_HEIGHT}px;padding:3px;border-radius:8px;
@@ -294,11 +295,15 @@ window.__ModuleLoader__.load({
       };
     }
 
-    function placeNearPointer(pointer, size, bounds) {
+    function placeWithinBounds(point, size, bounds) {
       return {
-        top: clamp(pointer.y + 8, bounds.top + 4, Math.max(bounds.top + 4, bounds.bottom - size.height - 4)),
-        left: clamp(pointer.x + 8, bounds.left + 8, Math.max(bounds.left + 8, bounds.right - size.width - 8)),
+        top: clamp(point.top, bounds.top + 4, Math.max(bounds.top + 4, bounds.bottom - size.height - 4)),
+        left: clamp(point.left, bounds.left + 8, Math.max(bounds.left + 8, bounds.right - size.width - 8)),
       };
+    }
+
+    function placeNearPointer(pointer, size, bounds) {
+      return placeWithinBounds({ top: pointer.y + 8, left: pointer.x + 8 }, size, bounds);
     }
 
     function placeInScroll(placed, scroll) {
@@ -1163,7 +1168,7 @@ window.__ModuleLoader__.load({
           const scroll = document.querySelector('[data-conversation-scroll]');
           if (!(scroll instanceof HTMLElement) || !scroll.contains(value.range.commonAncestorContainer)) { setBar(null); return; }
           const bounds = readBounds(scroll);
-          const size = editorSize(bounds);
+          const size = { width: BAR_WIDTH, height: BAR_HEIGHT };
           const placed = placeInScroll(mousePoint === null
             ? placeFloating(value.rect, size, bounds)
             : placeNearPointer(mousePoint, size, bounds), scroll);
@@ -1227,7 +1232,9 @@ window.__ModuleLoader__.load({
         const box = editorBoxRef.current;
         if (box === null || editor === null) return;
         if (editor.seed.barPlaced !== undefined && editorScroll !== undefined) {
-          editorOffsetRef.current = editor.seed.barOffset;
+          const rect = editor.seed.range?.getBoundingClientRect() ?? editor.seed.rect;
+          const anchor = placeInScroll({ top: rect.top, left: rect.left }, editorScroll);
+          editorOffsetRef.current = { top: editor.placed.top - anchor.top, left: editor.placed.left - anchor.left };
           return;
         }
         const rect = (editorScroll === undefined ? undefined : editor.seed.range?.getBoundingClientRect()) ?? editor.seed.rect ?? bar?.rect;
@@ -1243,9 +1250,11 @@ window.__ModuleLoader__.load({
         const scroll = seed?.scroll;
         const bounds = readBounds(scroll);
         const rect = seed !== undefined && seed.rect !== undefined ? seed.rect : bars?.rect ?? { top: bounds.top + 80, bottom: bounds.top + 80, left: 24, right: 24 };
-        const placed = seed.barPlaced === undefined ? placeFloating(rect, editorSize(bounds), bounds) : undefined;
+        const barRect = seed.barPlaced === undefined ? undefined : barBoxRef.current?.getBoundingClientRect();
+        const placed = barRect === undefined ? placeFloating(rect, editorSize(bounds), bounds)
+          : placeWithinBounds({ top: barRect.top, left: barRect.left }, editorSize(bounds), bounds);
         setComment(seed.comment ?? '');
-        setEditor({ seed, scroll, placed: seed.barPlaced ?? (scroll === undefined ? placed : placeInScroll(placed, scroll)) });
+        setEditor({ seed, scroll, placed: scroll === undefined ? placed : placeInScroll(placed, scroll) });
         setBar(null);
       };
       const openAnnotation = (index, fromComposer = false) => {
@@ -1373,7 +1382,7 @@ window.__ModuleLoader__.load({
           style: { top: `${String(bar.placed.top)}px`, left: `${String(bar.placed.left)}px` },
           onMouseDown: event => event.preventDefault(),
         },
-          h('button', { type: 'button', onClick: () => openEditor({ text: bar.text, anchor: bar.anchor, sessionId: bar.sessionId, range: bar.range, rect: bar.rect, scroll: bar.scroll, barPlaced: bar.placed, barOffset: bar.offset }) },
+          h('button', { type: 'button', onClick: () => openEditor({ text: bar.text, anchor: bar.anchor, sessionId: bar.sessionId, range: bar.range, rect: bar.rect, scroll: bar.scroll, barPlaced: bar.placed }) },
             h(IconQuote), messages.add),
         ), bar.scroll),
         editorScroll === undefined ? floatingEditor : createPortal(floatingEditor, editorScroll),
@@ -1468,6 +1477,7 @@ window.__ModuleLoader__.load({
         writeAnnotations,
         placeFloating,
         editorSize,
+        placeWithinBounds,
         placeNearPointer,
         scrollAnnotationIntoView,
         readBounds,

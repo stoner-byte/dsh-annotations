@@ -248,19 +248,23 @@ test('the toolbar prefers above, flips below, and stays inside the viewport', ()
   assert.equal(editor.top, 300 - 150 - 18);
 });
 
-test('mouse release places the toolbar and its editor together inside the transcript', () => {
+test('the bottom-edge toolbar stays near the mouse while the editor moves inside on click', () => {
   const bounds = { top: 100, bottom: 700, left: 0, right: 800 };
-  const size = api.editorSize(bounds);
-  assert.deepEqual(size, { width: 320, height: 260 });
-  assert.deepEqual(api.placeNearPointer({ x: 100, y: 180 }, size, bounds), { top: 188, left: 108 });
-  assert.deepEqual(api.placeNearPointer({ x: 790, y: 690 }, size, bounds), { top: 436, left: 472 });
+  const barSize = { width: 140, height: 36 };
+  const editorSize = api.editorSize(bounds);
+  assert.deepEqual(api.placeNearPointer({ x: 100, y: 180 }, barSize, bounds), { top: 188, left: 108 });
+  const bar = api.placeNearPointer({ x: 790, y: 690 }, barSize, bounds);
+  assert.deepEqual(bar, { top: 660, left: 652 });
+  assert.deepEqual(api.placeWithinBounds(bar, editorSize, bounds), { top: 436, left: 472 });
+  assert.deepEqual(api.placeWithinBounds({ top: 188, left: 108 }, editorSize, bounds), { top: 188, left: 108 });
   const narrow = { top: 100, bottom: 310, left: 100, right: 390 };
   assert.deepEqual(api.editorSize(narrow), { width: 274, height: 202 });
-  assert.deepEqual(api.placeNearPointer({ x: 380, y: 300 }, api.editorSize(narrow), narrow), { top: 104, left: 108 });
+  assert.deepEqual(api.placeWithinBounds(api.placeNearPointer({ x: 380, y: 300 }, barSize, narrow), api.editorSize(narrow), narrow), { top: 104, left: 108 });
   const overlay = source.split('function AnnotationOverlay(')[1].split('function focusComposer(')[0];
   assert.match(overlay, /if \(editorRefState.current !== null \|\| selecting\) return/);
   assert.match(overlay, /mousePoint = selecting && event.pointerType === 'mouse'/);
-  assert.match(overlay, /barPlaced: bar.placed, barOffset: bar.offset/);
+  assert.match(overlay, /const size = \{ width: BAR_WIDTH, height: BAR_HEIGHT \}/);
+  assert.match(overlay, /barRect = seed.barPlaced === undefined \? undefined : barBoxRef.current\?\.getBoundingClientRect\(\)/);
   assert.match(overlay, /editor.seed.barPlaced !== undefined && editorScroll !== undefined/);
   assert.match(overlay, /limits: editorSize\(readBounds\(editorScroll\)\)/);
   assert.match(source, /style: \{ maxWidth: limits.width, maxHeight: limits.height \}/);
