@@ -530,15 +530,23 @@ window.__ModuleLoader__.load({
     }
 
     function offsetsOf(host, range) {
-      let start;
-      let end;
-      let total = 0;
-      for (const node of textNodesOf(host)) {
-        if (node === range.startContainer) start = total + range.startOffset;
-        if (node === range.endContainer) end = total + range.endOffset;
-        if (start !== undefined && end !== undefined) break;
-        total += node.nodeValue?.length ?? 0;
-      }
+      const nodes = textNodesOf(host);
+      const offsetAt = (container, offset) => {
+        if (container.nodeType === Node.TEXT_NODE && !nodes.includes(container)) return;
+        const boundary = document.createRange();
+        boundary.setStart(container, offset);
+        boundary.collapse(true);
+        let total = 0;
+        for (const node of nodes) {
+          const length = node.nodeValue?.length ?? 0;
+          if (boundary.comparePoint(node, length) <= 0) total += length;
+          else if (boundary.comparePoint(node, 0) >= 0) return total;
+          else return container === node ? total + offset : undefined;
+        }
+        return total;
+      };
+      const start = offsetAt(range.startContainer, range.startOffset);
+      const end = offsetAt(range.endContainer, range.endOffset);
       if (start === undefined || end === undefined || end <= start) return;
       return { start, end };
     }
@@ -1745,6 +1753,7 @@ window.__ModuleLoader__.load({
       inject: ['sessions', 'slots', 'conversation', 'inputTriggers', 'uiConversation', 'remote', 'sidebarRight', 'sidebarRightTabs'],
       apply,
       __test: {
+        offsetsOf,
         serializeAnnotations,
         parseAsideContext,
         extractAsideContent,

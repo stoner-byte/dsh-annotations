@@ -134,6 +134,49 @@ test('annotations are read from the chips and count once per payload', () => {
   ]);
 });
 
+test('whole-paragraph boundaries retain text offsets across inline controls', () => {
+  const previousDocument = globalThis.document;
+  const previousNodeFilter = globalThis.NodeFilter;
+  const previousNode = globalThis.Node;
+  globalThis.NodeFilter = { SHOW_TEXT: 4 };
+  globalThis.Node = { TEXT_NODE: 3 };
+  const visible = { nodeType: 3, nodeValue: 'abc', position: 0, parentElement: { closest: () => null } };
+  const skipped = { nodeType: 3, nodeValue: 'x', position: 3, parentElement: { closest: () => ({}) } };
+  const following = { nodeType: 3, nodeValue: 'def', position: 4, parentElement: { closest: () => null } };
+  const firstParagraph = { boundaries: [0, 3] };
+  const secondParagraph = { boundaries: [4, 7] };
+  const position = (node, offset) => node.nodeType === 3 ? node.position + offset : node.boundaries[offset];
+  globalThis.document = {
+    createTreeWalker: () => {
+      const nodes = [visible, skipped, following];
+      return { nextNode: () => nodes.shift() ?? null };
+    },
+    createRange: () => ({
+      setStart(node, offset) { this.position = position(node, offset); },
+      collapse() {},
+      comparePoint(node, offset) { return Math.sign(position(node, offset) - this.position); },
+    }),
+  };
+  try {
+    assert.deepEqual(api.offsetsOf({}, {
+      startContainer: firstParagraph, startOffset: 0, endContainer: firstParagraph, endOffset: 1,
+    }), { start: 0, end: 3 });
+    assert.deepEqual(api.offsetsOf({}, {
+      startContainer: firstParagraph, startOffset: 0, endContainer: secondParagraph, endOffset: 1,
+    }), { start: 0, end: 6 });
+    assert.deepEqual(api.offsetsOf({}, {
+      startContainer: visible, startOffset: 1, endContainer: following, endOffset: 2,
+    }), { start: 1, end: 5 });
+    assert.equal(api.offsetsOf({}, {
+      startContainer: skipped, startOffset: 0, endContainer: following, endOffset: 2,
+    }), undefined);
+  } finally {
+    globalThis.document = previousDocument;
+    globalThis.NodeFilter = previousNodeFilter;
+    globalThis.Node = previousNode;
+  }
+});
+
 test('the toolbar prefers above, flips below, and stays inside the viewport', () => {
   const bounds = { top: 100, bottom: 700, left: 0, right: 800 };
   const above = api.placeFloating({ top: 300, bottom: 320, left: 40, right: 200 }, { width: 320, height: 36 }, bounds);
