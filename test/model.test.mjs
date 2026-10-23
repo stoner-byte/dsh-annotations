@@ -15,6 +15,7 @@ const react = {
   Fragment: Symbol('Fragment'),
   useCallback: (fn) => fn,
   useEffect: () => {},
+  useLayoutEffect: () => {},
   useMemo: (fn) => fn(),
   useRef: (value) => ({ current: value }),
   useState: (value) => [typeof value === 'function' ? value() : value, () => {}],
@@ -128,6 +129,19 @@ test('composer annotation preview opens on hover without click-to-toggle', () =>
   assert.match(dock, /className: 'dsh-aside-close'/);
   assert.match(dock, /onClick: clear/);
   assert.doesNotMatch(dock, /expanded \? '▾' : '▸'/);
+});
+
+test('sent annotation is a hover pill positioned after attachments', () => {
+  const sent = source.split('function AsideMessages(')[1].split('function contentText(')[0];
+  assert.equal(api.placeSentPill({ top: 100 }, { bottom: 230 }), 138);
+  assert.equal(api.sentPopoverBelow({ top: 50, bottom: 80 }, 150, 700), true);
+  assert.equal(api.sentPopoverBelow({ top: 420, bottom: 450 }, 150, 700), false);
+  assert.match(sent, /querySelector\('\[data-message-attachments\]'\)/);
+  assert.match(sent, /onMouseEnter: \(\) => setExpanded\(true\)/);
+  assert.match(sent, /onFocus: \(\) => setExpanded\(true\)/);
+  assert.doesNotMatch(sent, /onClick: \(\) => setExpanded|▸|▾/);
+  assert.match(source, /\[data-message-attachments\]\{margin-bottom:38px\}/);
+  assert.doesNotMatch(source, /\.dsh-aside-card-pill\{[^}]*width:100%/);
 });
 
 test('editor keeps the hidden annotation chip when Backspace or a selection reaches it', () => {

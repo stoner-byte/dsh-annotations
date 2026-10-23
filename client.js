@@ -6,6 +6,7 @@ window.__ModuleLoader__.load({
       createElement: h,
       useCallback,
       useEffect,
+      useLayoutEffect,
       useMemo,
       useRef,
       useState,
@@ -122,18 +123,19 @@ body:has(.dsh-aside-dock-editor) .dsh-aside-marker{visibility:hidden}
 [data-composer-seat]:has(.dsh-aside-dock[data-aside-inline]):not(:has(.dsh-aside-dock-editor)) [data-composer-placeholder]{transform:none}
 [data-composer-seat]:has(.dsh-aside-dock-editor) [data-composer-input]{padding-top:calc(var(--dsh-aside-editor-height, 177px) + 53px)}
 [data-composer-seat]:has(.dsh-aside-dock-editor) [data-composer-placeholder]{transform:translateY(calc(var(--dsh-aside-editor-height, 177px) + 49px))}
-.dsh-aside-capsule{display:inline-flex;align-items:center;gap:8px;height:30px;max-width:100%;width:fit-content;padding:0 38px 0 10px;
-  border-radius:9px;cursor:pointer;font:500 12.5px/1 var(--dsh-font-family,system-ui,sans-serif);color:inherit;
+.dsh-aside-capsule{display:inline-flex;align-items:center;gap:8px;height:30px;max-width:100%;width:fit-content;padding:0 31px 0 10px;
+  border-radius:9px;cursor:pointer;font:500 12.5px/1 var(--dsh-font-family,system-ui,sans-serif);color:var(--dsw-alias-label-primary,currentColor);
   background:color-mix(in srgb, var(--dsh-accent,#3b82f6) 12%, transparent);
   border:1px solid color-mix(in srgb, var(--dsh-accent,#3b82f6) 32%, transparent)}
 .dsh-aside-capsule:hover{background:color-mix(in srgb, var(--dsh-accent,#3b82f6) 18%, transparent)}
 .dsh-aside-capsule-count{display:grid;place-items:center;min-width:18px;height:18px;padding:0 4px;border-radius:99px;
   background:var(--dsh-accent,#3b82f6);color:#fff;font-size:10.5px;font-weight:600}
-.dsh-aside-close{position:absolute;top:3px;right:5px;display:grid;place-items:center;width:24px;height:24px;padding:0;
-  border:1px solid var(--dsh-border-subtle,rgba(127,127,127,.24));border-radius:50%;background:var(--dsh-surface-raised,Canvas);
-  color:inherit;font:18px/1 var(--dsh-font-family,system-ui,sans-serif);cursor:pointer;opacity:0;pointer-events:none}
+.dsh-aside-close{position:absolute;top:4px;right:5px;display:grid;place-items:center;width:22px;height:22px;padding:0;
+  border:0;border-radius:7px;background:transparent;color:var(--dsw-alias-label-secondary,currentColor);
+  cursor:pointer;opacity:0;pointer-events:none;transition:opacity .14s ease,background-color .14s ease,color .14s ease}
 .dsh-aside-dock:hover .dsh-aside-close,.dsh-aside-dock:focus-within .dsh-aside-close{opacity:1;pointer-events:auto}
-.dsh-aside-close:focus-visible{outline:2px solid var(--dsh-accent,#3b82f6);outline-offset:2px}
+.dsh-aside-close:hover,.dsh-aside-close:focus-visible{background:var(--dsw-alias-bg-layer-2,rgba(127,127,127,.1));color:var(--dsw-alias-label-primary,currentColor)}
+.dsh-aside-close:focus-visible{outline:2px solid var(--dsw-alias-brand-primary,#3b82f6);outline-offset:1px}
 .dsh-aside-dock:has(.dsh-aside-list)::before{content:"";position:absolute;left:0;right:0;bottom:100%;height:8px}
 .dsh-aside-list{position:absolute;bottom:calc(100% + 8px);left:0;width:320px;display:flex;flex-direction:column;gap:6px;max-height:240px;overflow:auto;
   padding:8px;border-radius:10px;background:var(--dsh-surface-raised,Canvas);
@@ -147,23 +149,31 @@ body:has(.dsh-aside-dock-editor) .dsh-aside-marker{visibility:hidden}
 .dsh-aside-list-comment{font-size:12px;opacity:.62;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .dsh-aside-list-row button{all:unset;flex:none;font-size:11.5px;opacity:.6;cursor:pointer;padding:2px 4px;border-radius:5px}
 .dsh-aside-list-row button:hover{opacity:1;background:color-mix(in srgb, currentColor 10%, transparent)}
-.dsh-aside-message{display:flex;flex-direction:column;gap:8px;min-width:0}
-.dsh-aside-message-body{min-width:0}
-.dsh-aside-card{border:1px solid var(--dsh-border-subtle,rgba(127,127,127,.26));border-radius:10px;overflow:hidden;
-  font:400 12.5px/1.45 var(--dsh-font-family,system-ui,sans-serif)}
-.dsh-aside-card-head{all:unset;box-sizing:border-box;display:flex;align-items:center;gap:8px;width:100%;padding:7px 10px;cursor:pointer}
-.dsh-aside-card-head:hover{background:color-mix(in srgb, currentColor 5%, transparent)}
-.dsh-aside-card-head .dsh-aside-card-count{display:grid;place-items:center;min-width:18px;height:18px;padding:0 4px;border-radius:99px;
-  background:var(--dsh-accent,#3b82f6);color:#fff;font:600 10.5px/1 var(--dsh-font-family,system-ui,sans-serif)}
-.dsh-aside-card-head .dsh-aside-card-chevron{margin-left:auto;opacity:.5;font-size:11px}
-.dsh-aside-card-body{display:flex;flex-direction:column;gap:8px;padding:0 10px 10px}
-.dsh-aside-card-item{display:flex;gap:8px;padding-top:8px;border-top:1px solid var(--dsh-border-subtle,rgba(127,127,127,.18))}
-.dsh-aside-card-item-index{flex:none;display:grid;place-items:center;width:18px;height:18px;border-radius:99px;
-  background:color-mix(in srgb, var(--dsh-accent,#3b82f6) 16%, transparent);font-size:10.5px;font-weight:600}
-.dsh-aside-card-item-text{display:flex;flex-direction:column;gap:3px;min-width:0}
-.dsh-aside-card-item-quote{margin:0;padding-left:8px;border-left:2px solid color-mix(in srgb, var(--dsh-accent,#3b82f6) 45%, transparent);
-  white-space:pre-wrap;opacity:.85}
-.dsh-aside-card-item-comment{white-space:pre-wrap;opacity:.7;font-size:12px}
+.dsh-aside-message{position:relative;display:flex;flex-direction:column;align-items:flex-end;gap:8px;min-width:0}
+.dsh-aside-message-body{align-self:stretch;min-width:0}
+.dsh-aside-message[data-aside-after-attachments] [data-message-attachments]{margin-bottom:38px}
+.dsh-aside-message[data-aside-after-attachments] .dsh-aside-card{position:absolute;right:0;top:var(--dsh-aside-sent-top,0px)}
+.dsh-aside-card{position:relative;z-index:4;align-self:flex-end;width:fit-content;max-width:100%;
+  font:500 12.5px/1 var(--dsh-font-family,system-ui,sans-serif)}
+.dsh-aside-card-pill{display:inline-flex;align-items:center;gap:7px;height:30px;padding:0 11px;border:1px solid var(--dsw-alias-border-l1,rgba(127,127,127,.25));
+  border-radius:99px;background:var(--dsw-alias-bg-layer-1,Canvas);color:var(--dsw-alias-label-primary,currentColor);font:inherit;cursor:default;white-space:nowrap}
+.dsh-aside-card-pill svg{flex:none;color:var(--dsw-alias-label-secondary,currentColor)}
+.dsh-aside-card-pill:hover,.dsh-aside-card-pill:focus-visible{background:var(--dsw-alias-bg-layer-2,Canvas);border-color:var(--dsw-alias-border-l2,rgba(127,127,127,.35))}
+.dsh-aside-card-pill:focus-visible{outline:2px solid var(--dsw-alias-brand-primary,#3b82f6);outline-offset:2px}
+.dsh-aside-card:has(.dsh-aside-card-body)::before{content:"";position:absolute;left:0;right:0;bottom:100%;height:8px}
+.dsh-aside-card[data-aside-open-below]::before{top:100%;bottom:auto}
+.dsh-aside-card-body{box-sizing:border-box;position:absolute;right:0;bottom:calc(100% + 8px);width:min(460px,calc(100vw - 32px));max-height:min(330px,50vh);
+  overflow:auto;display:flex;flex-direction:column;padding:14px 16px;border:1px solid var(--dsw-alias-border-l1,rgba(127,127,127,.25));
+  border-radius:12px;background:var(--dsw-alias-bg-overlay,Canvas);color:var(--dsw-alias-label-primary,currentColor);
+  box-shadow:0 10px 28px rgba(0,0,0,.12);font:400 13px/1.5 var(--dsh-font-family,system-ui,sans-serif)}
+.dsh-aside-card[data-aside-open-below] .dsh-aside-card-body{top:calc(100% + 8px);bottom:auto}
+.dsh-aside-card-item{display:grid;grid-template-columns:20px minmax(0,1fr);gap:9px;padding:2px 0}
+.dsh-aside-card-item+.dsh-aside-card-item{margin-top:12px;padding-top:14px;border-top:1px solid var(--dsw-alias-border-l1,rgba(127,127,127,.2))}
+.dsh-aside-card-item-index{color:var(--dsw-alias-label-secondary,currentColor);font-size:12px}
+.dsh-aside-card-item-text{display:flex;flex-direction:column;gap:4px;min-width:0}
+.dsh-aside-card-item-label{color:var(--dsw-alias-label-secondary,currentColor);font-size:11px}
+.dsh-aside-card-item-quote,.dsh-aside-card-item-comment{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
+.dsh-aside-card-item-comment{margin-top:4px}
 .dsh-aside-panel{display:flex;flex-direction:column;height:100%;min-height:0;font:400 13px/1.5 var(--dsh-font-family,system-ui,sans-serif)}
 .dsh-aside-panel-quote{flex:none;margin:10px 12px 0;padding:8px 10px;border-radius:9px;max-height:120px;overflow:auto;white-space:pre-wrap;
   font-size:12px;opacity:.8;background:color-mix(in srgb, var(--dsh-accent,#3b82f6) 9%, transparent);
@@ -194,14 +204,14 @@ body:has(.dsh-aside-dock-editor) .dsh-aside-marker{visibility:hidden}
     const MESSAGES = {
       zh: {
         add: '添加到对话', ask: '在侧边聊天中提问', annotations: '条注释', quote: '所选文本',
-        commentPlaceholder: '添加可选评论…', cancel: '取消', save: '保存', remove: '删除',
+        commentPlaceholder: '添加可选评论…', commentLabel: '用户评论', cancel: '取消', save: '保存', remove: '删除',
         clearAll: '清除全部注释', clearFailed: '无法清除注释。', aside: '旁注讨论', empty: '这段对话是临时的，只用于讨论所选内容。',
         inputPlaceholder: '就所选内容提问…', send: '发送', stop: '停止', thinking: '思考中…',
         inherited: '使用主会话模型', close: '关闭', thinkingLabel: '思考',
       },
       en: {
         add: 'Add to chat', ask: 'Ask in side chat', annotations: 'annotations', quote: 'Selected text',
-        commentPlaceholder: 'Add an optional comment…', cancel: 'Cancel', save: 'Save', remove: 'Remove',
+        commentPlaceholder: 'Add an optional comment…', commentLabel: 'Comment', cancel: 'Cancel', save: 'Save', remove: 'Remove',
         clearAll: 'Delete all annotations', clearFailed: 'Could not delete the annotations.', aside: 'Aside', empty: 'This discussion is temporary and only sees the selected passage.',
         inputPlaceholder: 'Ask about this passage…', send: 'Send', stop: 'Stop', thinking: 'Thinking…',
         inherited: 'Using the parent model', close: 'Close', thinkingLabel: 'Reasoning',
@@ -714,6 +724,14 @@ body:has(.dsh-aside-dock-editor) .dsh-aside-marker{visibility:hidden}
       };
     }
 
+    function placeSentPill(message, attachments) {
+      return attachments.bottom - message.top + 8;
+    }
+
+    function sentPopoverBelow(card, height, viewportHeight) {
+      return card.top < height + 8 && viewportHeight - card.bottom > card.top;
+    }
+
     function editsAnnotationChip(editor, range, type) {
       const backward = type === 'Backspace' || type.endsWith('Backward');
       const forward = type === 'Delete' || type.endsWith('Forward');
@@ -840,7 +858,9 @@ body:has(.dsh-aside-dock-editor) .dsh-aside-marker{visibility:hidden}
         h('button', {
           type: 'button', className: 'dsh-aside-close',
           'aria-label': messages.clearAll, title: messages.clearAll, onClick: clear,
-        }, '×'),
+        }, h('svg', { width: 15, height: 15, viewBox: '0 0 20 20', fill: 'none', stroke: 'currentColor',
+          strokeWidth: 1.8, strokeLinecap: 'round', 'aria-hidden': true },
+          h('path', { d: 'M5.5 5.5l9 9m0-9-9 9' }))),
         expanded ? h('div', { className: 'dsh-aside-list', role: 'list' }, annotations.map((annotation, index) => h('div', {
           key: `aside-${String(index)}`,
           role: 'listitem',
@@ -864,21 +884,58 @@ body:has(.dsh-aside-dock-editor) .dsh-aside-marker{visibility:hidden}
 
     function AsideMessages({ annotations, locale }) {
       const [expanded, setExpanded] = useState(false);
+      const cardRef = useRef(null);
       const messages = MESSAGES[locale];
+      useLayoutEffect(() => {
+        const message = cardRef.current?.closest('.dsh-aside-message');
+        const attachments = message?.querySelector('[data-message-attachments]');
+        if (!message || !attachments) return;
+        // ponytail: native UserContent has no after-attachments slot; use its measured rail until one exists.
+        message.setAttribute('data-aside-after-attachments', '');
+        const place = () => message.style.setProperty('--dsh-aside-sent-top',
+          `${String(placeSentPill(message.getBoundingClientRect(), attachments.getBoundingClientRect()))}px`);
+        const resize = new ResizeObserver(place);
+        resize.observe(message);
+        resize.observe(attachments);
+        place();
+        return () => {
+          resize.disconnect();
+          message.removeAttribute('data-aside-after-attachments');
+          message.style.removeProperty('--dsh-aside-sent-top');
+        };
+      }, [annotations.length]);
+      useLayoutEffect(() => {
+        if (!expanded) return;
+        const card = cardRef.current;
+        const preview = card?.querySelector('.dsh-aside-card-body');
+        if (!card || !preview) return;
+        const box = card.getBoundingClientRect();
+        card.toggleAttribute('data-aside-open-below',
+          sentPopoverBelow(box, preview.getBoundingClientRect().height, window.innerHeight));
+      }, [expanded]);
       if (annotations.length === 0) return null;
-      return h('div', { className: 'dsh-aside-card', 'data-aside-skip': '' },
-        h('button', { type: 'button', className: 'dsh-aside-card-head', 'aria-expanded': expanded, onClick: () => setExpanded(value => !value) },
-          h('span', { className: 'dsh-aside-card-count' }, String(annotations.length)),
-          h('span', null, `${String(annotations.length)} ${messages.annotations}`),
-          h('span', { className: 'dsh-aside-card-chevron' }, expanded ? '▾' : '▸'),
+      return h('div', {
+        ref: cardRef, className: 'dsh-aside-card', 'data-aside-skip': '',
+        onMouseEnter: () => setExpanded(true),
+        onMouseLeave: () => setExpanded(false),
+        onFocus: () => setExpanded(true),
+        onBlur: event => { if (!event.currentTarget.contains(event.relatedTarget)) setExpanded(false); },
+      },
+        h('button', { type: 'button', className: 'dsh-aside-card-pill', 'aria-expanded': expanded },
+          h('svg', { width: 16, height: 16, viewBox: '0 0 20 20', fill: 'none', stroke: 'currentColor',
+            strokeWidth: 1.6, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true },
+            h('path', { d: 'M5 3.75h10a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H8l-3.5 2v-2A2 2 0 0 1 3 13.75v-8a2 2 0 0 1 2-2Z' }),
+            h('path', { d: 'M6.5 8h7m-7 3h4.5' })),
+          `${String(annotations.length)} ${messages.annotations}`,
         ),
-        expanded ? h('div', { className: 'dsh-aside-card-body' }, annotations.map((annotation, index) => h('div', {
-          key: `aside-card-${String(index)}`,
-          className: 'dsh-aside-card-item',
+        expanded ? h('div', { className: 'dsh-aside-card-body', role: 'list' }, annotations.map((annotation, index) => h('div', {
+          key: `aside-card-${String(index)}`, className: 'dsh-aside-card-item', role: 'listitem',
         },
-          h('span', { className: 'dsh-aside-card-item-index' }, String(index + 1)),
+          h('span', { className: 'dsh-aside-card-item-index' }, `${String(index + 1)}.`),
           h('div', { className: 'dsh-aside-card-item-text' },
+            h('span', { className: 'dsh-aside-card-item-label' }, `${messages.quote}:`),
             h('blockquote', { className: 'dsh-aside-card-item-quote' }, annotation.text),
+            annotation.comment === undefined ? null : h('span', { className: 'dsh-aside-card-item-label' }, `${messages.commentLabel}:`),
             annotation.comment === undefined ? null : h('div', { className: 'dsh-aside-card-item-comment' }, annotation.comment),
           ),
         ))) : null,
@@ -1513,6 +1570,8 @@ body:has(.dsh-aside-dock-editor) .dsh-aside-marker{visibility:hidden}
         placeFloating,
         placeMarker,
         placeDock,
+        placeSentPill,
+        sentPopoverBelow,
         editsAnnotationChip,
         clamp,
       },
