@@ -251,22 +251,22 @@ window.__ModuleLoader__.load({
       ].join('\n');
     }
 
-    const ASIDE_PREFIX = /^\s*<aside_context(?:\s[^>]*)?>\r?\n([\s\S]*?)\r?\n<\/aside_context>\s*/u;
+    const ASIDE_BLOCK = /<aside_context>\r?\n[\s\S]*?\r?\n<\/aside_context>/gu;
+    const ANNOTATION_BLOCK = /<annotation index="\d+">\n<selected_text>\n([\s\S]*?)\n<\/selected_text>(?:\n<user_comment>\n([\s\S]*?)\n<\/user_comment>)?\n<\/annotation>/gu;
 
     function parseAsideContext(text) {
-      const prefix = ASIDE_PREFIX.exec(text);
-      if (prefix === null) return undefined;
-      const annotations = [];
-      for (const match of prefix[1].matchAll(/<annotation(?: index="\d+")?>\r?\n([\s\S]*?)\r?\n<\/annotation>/gu)) {
-        const body = match[1] ?? '';
-        const parts = /^<selected_text>\r?\n([\s\S]*?)\r?\n<\/selected_text>(?:\r?\n<user_comment>\r?\n([\s\S]*?)\r?\n<\/user_comment>)?$/u.exec(body);
-        annotations.push({
-          text: unescapeXmlText(parts?.[1] ?? body),
-          ...(parts?.[2] === undefined ? {} : { comment: unescapeXmlText(parts[2]) }),
-        });
-      }
-      if (annotations.length === 0) return undefined;
-      return { annotations, message: text.slice(prefix[0].length).trim() };
+      const candidates = [...text.matchAll(ASIDE_BLOCK)];
+      if (candidates.length !== 1) return undefined;
+      const candidate = candidates[0];
+      const xml = normalizeText(candidate[0]);
+      const annotations = [...xml.matchAll(ANNOTATION_BLOCK)].map((match) => ({
+        text: unescapeXmlText(match[1]),
+        ...(match[2] === undefined ? {} : { comment: unescapeXmlText(match[2]) }),
+      }));
+      if (annotations.length === 0 || serializeAnnotations(annotations) !== xml) return undefined;
+      const start = candidate.index;
+      const end = start + candidate[0].length;
+      return { annotations, start, end };
     }
 
     function chipPayload(sessionId, annotations) {
@@ -445,6 +445,7 @@ window.__ModuleLoader__.load({
         if (existing !== undefined) return existing;
         const input = {
           state: source.state,
+          caretSpan: () => source.caretSpan(),
           insertReference: (reference, span) => source.insertReference(reference, span),
           replaceText: (text, span) => scope.bail(scope, 'slash/input-insert-text', { text, span }) === true,
           notify: (level, text) => source.notify?.(level, text),
@@ -778,6 +779,51 @@ window.__ModuleLoader__.load({
       return card.top < height + 8 && viewportHeight - card.bottom > card.top;
     }
 
+    function preserveAnnotationOnDelete(input, key) {
+      if (input === undefined) return false;
+      const snapshot = input.state.getSnapshot();
+      if (snapshot.phase !== 'plain') return false;
+      const references = [...snapshot.occurrences].sort((a, b) => a.offset - b.offset);
+      const own = references.filter(occurrence => occurrence.source === SOURCE);
+      if (own.length !== 1) return false;
+      let editLength = snapshot.draft.length;
+      let previousEnd = 0;
+      for (const occurrence of references) {
+        if (occurrenceInDraft(snapshot, occurrence) === undefined || occurrence.offset < previousEnd) return false;
+        editLength -= occurrence.length - 1;
+        previousEnd = occurrence.offset + occurrence.length;
+      }
+      const occurrence = own[0];
+      const chip = occurrenceEditSpan(snapshot, occurrence);
+      const selection = input.caretSpan?.();
+      if (chip === undefined || selection === undefined
+        || !Number.isSafeInteger(selection.start) || !Number.isSafeInteger(selection.end)
+        || selection.start < 0 || selection.end > editLength || selection.start > selection.end) return false;
+      if (selection.start === 0 && selection.end === editLength && selection.end > 0) {
+        return input.insertReference({
+          source: SOURCE, ref: occurrence.ref, label: occurrence.label,
+          clipboardText: occurrence.clipboardText,
+          ...(occurrence.appearance === undefined ? {} : { appearance: occurrence.appearance }),
+        }, { start: 0, end: editLength, draftRev: snapshot.draftRev }) === true;
+      }
+      if (selection.start !== selection.end) return false;
+      const position = references.indexOf(occurrence);
+      const backward = key === 'Backspace' && selection.start === chip.end;
+      const forward = key === 'Delete' && selection.start === chip.start;
+      if (!backward && !forward) return false;
+      const text = backward
+        ? snapshot.draft.slice(position === 0 ? 0 : references[position - 1].offset + references[position - 1].length, occurrence.offset)
+        : snapshot.draft.slice(occurrence.offset + occurrence.length,
+          references[position + 1]?.offset ?? snapshot.draft.length);
+      if (text === '') return true;
+      const graphemes = [...new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(text)];
+      const grapheme = backward ? graphemes.at(-1) : graphemes[0];
+      const start = backward ? chip.start - grapheme.segment.length : chip.end;
+      return input.replaceText('', {
+        start, end: start + grapheme.segment.length, draftRev: snapshot.draftRev,
+      }) === true;
+    }
+
     function editsAnnotationChip(editor, range, type) {
       const backward = type === 'Backspace' || type.endsWith('Backward');
       const forward = type === 'Delete' || type.endsWith('Forward');
@@ -855,6 +901,8 @@ window.__ModuleLoader__.load({
               type = 'deleteByCut';
             } else return;
           } else if (event.type === 'dragstart') type = 'deleteByDrag';
+          else if (event.type === 'cut') type = 'deleteByCut';
+          else if (event.type === 'paste' || event.type === 'drop') type = 'insertFromPaste';
           if (!type) return;
           const target = event.type === 'beforeinput' ? event.getTargetRanges?.()[0] : undefined;
           const selection = window.getSelection();
@@ -867,14 +915,18 @@ window.__ModuleLoader__.load({
           if (!editsAnnotationChip(editor, range, type)) return;
           event.preventDefault();
           event.stopPropagation();
+          if (event.type === 'keydown' && (event.key === 'Backspace' || event.key === 'Delete')
+            && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.isComposing) {
+            preserveAnnotationOnDelete(access.currentInput(), event.key);
+          }
         };
-        editor.addEventListener('keydown', protect, true);
-        editor.addEventListener('beforeinput', protect, true);
-        editor.addEventListener('dragstart', protect, true);
+        for (const event of ['keydown', 'beforeinput', 'paste', 'cut', 'dragstart', 'drop']) {
+          editor.addEventListener(event, protect, true);
+        }
         return () => {
-          editor.removeEventListener('keydown', protect, true);
-          editor.removeEventListener('beforeinput', protect, true);
-          editor.removeEventListener('dragstart', protect, true);
+          for (const event of ['keydown', 'beforeinput', 'paste', 'cut', 'dragstart', 'drop']) {
+            editor.removeEventListener(event, protect, true);
+          }
         };
       }, [annotations.length > 0]);
       if (annotations.length === 0) return null;
@@ -968,31 +1020,52 @@ window.__ModuleLoader__.load({
     }
 
     function contentText(content) {
-      return content.map((block) => {
-        if (typeof block !== 'object' || block === null) return '';
-        return block.type === 'text' && typeof block.text === 'string' ? block.text : '';
-      }).join('');
+      const runs = [];
+      let current;
+      for (const [index, block] of content.entries()) {
+        if (block?.type !== 'text' || typeof block.text !== 'string') {
+          current = undefined;
+          continue;
+        }
+        if (current === undefined) {
+          current = { from: index, to: index, text: '' };
+          runs.push(current);
+        }
+        current.to = index;
+        current.text += block.text;
+      }
+      return runs;
     }
 
-    function replaceTextContent(content, message) {
-      let replaced = false;
-      const next = content.flatMap((block) => {
-        if (typeof block !== 'object' || block === null) return [block];
-        if (block.type !== 'text' || typeof block.text !== 'string') return [block];
-        if (replaced) return [];
-        replaced = true;
-        return [{ ...block, text: message }];
+    function replaceTextContent(content, run, start, end) {
+      let offset = 0;
+      return content.map((block, index) => {
+        if (index < run.from || index > run.to) return block;
+        const from = Math.max(0, Math.min(block.text.length, start - offset));
+        const to = Math.max(0, Math.min(block.text.length, end - offset));
+        offset += block.text.length;
+        return { ...block, text: block.text.slice(0, from) + block.text.slice(to) };
       });
-      return replaced ? next : [{ type: 'text', text: message }, ...next];
+    }
+
+    function extractAsideContent(content) {
+      const matches = contentText(content).map(run => ({ run, parsed: parseAsideContext(run.text) }))
+        .filter(({ parsed }) => parsed !== undefined);
+      if (matches.length !== 1) return undefined;
+      const { run, parsed } = matches[0];
+      return {
+        annotations: parsed.annotations,
+        content: replaceTextContent(content, run, parsed.start, parsed.end),
+      };
     }
 
     function annotatedRenderer(Original, locale) {
       return function AsideUserMessage(props) {
-        const parsed = parseAsideContext(contentText(props.node.data.content));
+        const parsed = extractAsideContent(props.node.data.content);
         if (parsed === undefined) return h(Original, props);
         const node = {
           ...props.node,
-          data: { ...props.node.data, content: replaceTextContent(props.node.data.content, parsed.message) },
+          data: { ...props.node.data, content: parsed.content },
         };
         return h('div', { className: 'dsh-aside-message' },
           h(AsideMessages, { annotations: parsed.annotations, locale }),
@@ -1648,6 +1721,7 @@ window.__ModuleLoader__.load({
       __test: {
         serializeAnnotations,
         parseAsideContext,
+        extractAsideContent,
         chipPayload,
         decodeChip,
         occurrenceEditSpan,
@@ -1663,6 +1737,7 @@ window.__ModuleLoader__.load({
         placeSentPill,
         sentPopoverBelow,
         editsAnnotationChip,
+        preserveAnnotationOnDelete,
         clamp,
       },
     };

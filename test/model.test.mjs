@@ -32,8 +32,9 @@ test('annotation payload survives the model-facing round trip', () => {
     { text: 'a < b & c', comment: 'why?' },
     { text: 'line1\nline2' },
   ];
-  const parsed = api.parseAsideContext(`${api.serializeAnnotations(annotations)}\n\nMy real question`);
-  assert.deepEqual(parsed, { annotations, message: 'My real question' });
+  const xml = api.serializeAnnotations(annotations);
+  const parsed = api.parseAsideContext(`${xml}\n\nMy real question`);
+  assert.deepEqual(parsed, { annotations, start: 0, end: xml.length });
 });
 
 test('client and host declare the same four methods', async () => {
@@ -46,6 +47,40 @@ test('client and host declare the same four methods', async () => {
 
 test('plain messages are not treated as annotations', () => {
   assert.equal(api.parseAsideContext('hello <aside_context>'), undefined);
+});
+
+test('sent annotations render at the beginning, middle, or end without changing surrounding text', () => {
+  const annotations = [{ text: 'a < b', comment: 'why & how' }];
+  const xml = api.serializeAnnotations(annotations);
+  for (const [before, after] of [['', ' qwe'], ['qe', 'after'], ['aats', '']]) {
+    const text = `${before}${xml}${after}`;
+    assert.deepEqual(api.parseAsideContext(text), {
+      annotations, start: before.length, end: before.length + xml.length,
+    });
+  }
+  assert.equal(api.parseAsideContext(`x${xml}y${xml}z`), undefined);
+  assert.equal(api.parseAsideContext(xml.replace('</selected_text>', '</wrong_text>')), undefined);
+  assert.equal(api.parseAsideContext(xml.replace('index="1"', 'index="2"')), undefined);
+});
+
+test('sent display strips only the XML span and preserves text blocks and attachments', () => {
+  const xml = api.serializeAnnotations([{ text: 'passage' }]);
+  const content = [
+    { type: 'text', text: 'before', tone: 'keep' },
+    { type: 'text', text: xml.slice(0, 22) },
+    { type: 'text', text: `${xml.slice(22)} after` },
+    { type: 'image', id: 'image-1' },
+    { type: 'text', text: 'later' },
+  ];
+  const parsed = api.extractAsideContent(content);
+  assert.deepEqual(parsed.annotations, [{ text: 'passage' }]);
+  assert.deepEqual(parsed.content, [
+    content[0], { type: 'text', text: '' }, { type: 'text', text: ' after' }, content[3], content[4],
+  ]);
+  assert.deepEqual(content[1], { type: 'text', text: xml.slice(0, 22) });
+  assert.equal(api.extractAsideContent([
+    { type: 'text', text: xml.slice(0, 22) }, content[3], { type: 'text', text: xml.slice(22) },
+  ]), undefined);
 });
 
 test('chip payload rejects a foreign version and keeps anchors', () => {
@@ -252,10 +287,54 @@ test('editor keeps the hidden annotation chip when Backspace or a selection reac
     assert.equal(api.editsAnnotationChip(editor, caret(1, 'text'), 'deleteWordBackward'), false);
     assert.equal(api.editsAnnotationChip(editor, { collapsed: false, intersectsNode: () => true }, 'insertText'), true);
     assert.equal(api.editsAnnotationChip(editor, { collapsed: false, intersectsNode: () => false }, 'deleteByCut'), false);
+    assert.match(source, /\['keydown', 'beforeinput', 'paste', 'cut', 'dragstart', 'drop'\]/);
   } finally {
     globalThis.document = previousDocument;
     globalThis.Range = previousRange;
   }
+});
+
+test('ordinary delete skips the hidden chip, including full-select and grapheme boundaries', () => {
+  const ref = JSON.stringify(api.chipPayload('s', [{ text: 'passage' }]));
+  const occurrence = { source: 'aside-annotations', ref, label: '__dsh_aside_annotations__',
+    clipboardText: 'passage', offset: 3, length: 7 };
+  const snapshot = { draft: 'a👩‍💻passageb', draftRev: 8, phase: 'plain', occurrences: [
+    { ...occurrence, offset: 6 },
+  ] };
+  let selection;
+  const calls = [];
+  const input = {
+    state: { getSnapshot: () => snapshot }, caretSpan: () => selection,
+    replaceText: (text, span) => { calls.push(['text', text, span]); return true; },
+    insertReference: (value, span) => { calls.push(['reference', value, span]); return true; },
+  };
+  selection = { start: 0, end: 8 }; // a + five UTF-16 units for the emoji + one chip + b
+  assert.equal(api.preserveAnnotationOnDelete(input, 'Backspace'), true);
+  assert.deepEqual(calls.pop(), ['reference', {
+    source: occurrence.source, ref, label: occurrence.label, clipboardText: occurrence.clipboardText,
+  }, { start: 0, end: 8, draftRev: 8 }]);
+  selection = { start: 7, end: 7 };
+  assert.equal(api.preserveAnnotationOnDelete(input, 'Backspace'), true);
+  assert.deepEqual(calls.pop(), ['text', '', { start: 1, end: 6, draftRev: 8 }]);
+  selection = { start: 6, end: 6 };
+  assert.equal(api.preserveAnnotationOnDelete(input, 'Delete'), true);
+  assert.deepEqual(calls.pop(), ['text', '', { start: 7, end: 8, draftRev: 8 }]);
+  selection = { start: 1, end: 8 };
+  assert.equal(api.preserveAnnotationOnDelete(input, 'Delete'), false);
+  assert.equal(calls.length, 0);
+});
+
+test('full-select span counts other references as one editor position', () => {
+  const note = { source: 'aside-annotations', ref: 'note-ref', label: '__dsh_aside_annotations__',
+    clipboardText: 'passage', offset: 9, length: 7 };
+  const snapshot = { draft: '[file] abpassagecd', draftRev: 9, phase: 'plain', occurrences: [
+    { source: 'file', ref: 'file-ref', label: '[file]', clipboardText: '[file]', offset: 0, length: 6 }, note,
+  ] };
+  let span;
+  const input = { state: { getSnapshot: () => snapshot }, caretSpan: () => ({ start: 0, end: 7 }),
+    insertReference: (value, at) => { span = at; assert.equal(value.ref, note.ref); return true; } };
+  assert.equal(api.preserveAnnotationOnDelete(input, 'Delete'), true);
+  assert.deepEqual(span, { start: 0, end: 7, draftRev: 9 });
 });
 
 test('composer annotation sits beside an image or below a crowded attachment rail', () => {

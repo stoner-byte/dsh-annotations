@@ -57,8 +57,8 @@ Client 半边（`client.js`，无构建步骤，`window.__ModuleLoader__.load`�
 - **引用芯片**：`inputTriggers.registerSource` 注册 source `aside-annotations`。
   - `ref` = JSON：`{version, sessionId, annotations:[{text, comment?, anchor?}]}`。
   - `clipboardText` 只做草稿占位。
-  - `serialize` 产出模型看到的 XML。
-- **消息渲染**：shadow `conversation.chat.node`（key `user` / `steering`，priority -100）。发现 `<aside_context>` 前缀时剥掉，交回原生渲染器，上方加折叠卡片。
+  - `serialize` 产出模型看到的 XML。普通退格/Delete 越过隐藏芯片删相邻正文；全选删除保留注释芯片（可带一个分隔空格），其他跨芯片编辑继续保护。
+- **消息渲染**：shadow `conversation.chat.node`（key `user` / `steering`，priority -100）。严格识别正文前、中、后的完整 `<aside_context>`，仅在展示副本中剥掉；原生渲染器保留文字块与附件顺序，并显示注释胶囊。
 - **高亮与徽标**：CSS Custom Highlight API（`dsh-aside-annotation`）。徽标 fixed 定位，滚动与 DOM 变化时重算。
 - **侧边栏**：`sidebarRightTabs.register({id:'dsh-aside', kind:'aside'})` + `sidebar.right.pane.tab`。用 `ctx.sidebarRight.openTab('aside', {params})` 打开。面板通过 `ctx.remote` 调 Host。
 
@@ -88,10 +88,10 @@ npm run test:install
 ## 已知限制与风险
 
 - **线上声明写了两份**：Host 用 `lib/typert.js`，Client 在 `client.js` 里用 `require('zod')` 重建。原始客户端模块不能 import Host 文件，所以暂时重复。改方法名或参数时必须两边同步；测试会检查四个方法名两边都在。
-- **私有契约**：`data-chat-anchor-key`、`data-composer-chip`、`data-conversation-scroll`、`data-composer-seat`、`InputState`（`draft` / `occurrences` / `insertReference` / `replaceText`）、`sidebar.right.pane.tab` 的注入 props。DSH 升级要回归。
+- **私有契约**：`data-chat-anchor-key`、`data-composer-chip`、`data-conversation-scroll`、`data-composer-seat`、`InputState`（`draft` / `occurrences` / `caretSpan` / `insertReference` / `replaceText`）、`sidebar.right.pane.tab` 的注入 props。DSH 升级要回归。
 - **侧边栏参数通道**：自带面板用槽位注入的 `useTabInfo()` 读 `tab.navigation.params` 取选区（`props.tab` 不存在，已实测）。取不到时显示错误，不崩溃。
 - **依赖 better-sidebar 的私有服务**：`ctx.get('betterSidebar')` 未在 inject 里声明（否则插件会等本机没装的依赖），用 try/catch 探测。它改服务名时按钮退回自带面板。
 - 只支持单条消息内选择。跨消息选择不弹工具条。
 - 芯片被压成 0 尺寸。Lexical 光标通常正常。若某版本异常，退回可见胶囊：删掉 `[data-composer-chip="aside-annotations"]` 那条 CSS。
 - 无模型选择器。侧栏沿用父会话模型。
-- 发送后的卡片依赖消息原文里的 `<aside_context>` 前缀。被压缩或改写过的历史消息不显示卡片。
+- 已发送胶囊只识别恰好一个符合插件序列化格式的完整 `<aside_context>`；被改写过的历史消息保留原文。旧日志没有来源元数据，手写同形 XML 无法区分。
