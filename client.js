@@ -95,8 +95,8 @@ window.__ModuleLoader__.load({
 .dsh-annotations-preview-row-editable{cursor:pointer}
 .dsh-annotations-preview-row-editable:hover,.dsh-annotations-preview-row-editable:focus-visible{background:color-mix(in srgb, currentColor 6%, transparent)}
 .dsh-annotations-preview-row-editable:focus-visible{outline:2px solid var(--dsw-alias-brand-primary,#3b82f6);outline-offset:2px}
-.dsh-annotations-preview-index{display:grid;place-items:center;min-width:18px;height:18px;border-radius:99px;flex:none;
-  background:var(--dsh-accent,#3b82f6);color:#fff;font:600 10.5px/1 var(--dsh-font-family,system-ui,sans-serif)}
+.dsh-annotations-preview-index{min-width:18px;flex:none;text-align:right;color:var(--dsw-alias-label-secondary,currentColor);
+  font:500 12px/1.45 var(--dsh-font-family,system-ui,sans-serif)}
 .dsh-annotations-preview-text{display:flex;flex-direction:column;gap:8px;min-width:0;flex:1}
 .dsh-annotations-preview-quote,.dsh-annotations-preview-comment{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px}
 .dsh-annotations-preview-quote{opacity:.85}
@@ -679,7 +679,7 @@ window.__ModuleLoader__.load({
           onEdit(index);
         },
       },
-        h('span', { className: 'dsh-annotations-preview-index' }, String(index + 1)),
+        h('span', { className: 'dsh-annotations-preview-index' }, `${String(index + 1)}.`),
         h('span', { className: 'dsh-annotations-preview-text' },
           h('span', { className: 'dsh-annotations-preview-quote', title: annotation.text }, annotation.text),
           annotation.comment === undefined ? null : h('span', { className: 'dsh-annotations-preview-comment', title: annotation.comment }, annotation.comment),

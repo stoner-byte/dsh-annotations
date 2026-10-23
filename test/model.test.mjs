@@ -347,8 +347,9 @@ test('composer and sent annotations share one hover preview layout', () => {
   assert.match(source, /\.dsh-annotations-preview\{[^}]*width:min\(320px,calc\(100vw - 32px\)\)/);
   assert.match(source, /\.dsh-annotations-dock:has\(\.dsh-annotations-list\),\.dsh-annotations-card:has\(\.dsh-annotations-card-body\)\{z-index:6\}/);
   assert.match(source, /background:var\(--dsh-surface-raised,Canvas\)/);
-  assert.match(source, /\.dsh-annotations-preview-index\{[^}]*background:var\(--dsh-accent,#3b82f6\)/);
-  assert.match(preview, /className: 'dsh-annotations-preview-index' \}, String\(index \+ 1\)/);
+  assert.match(source, /\.dsh-annotations-preview-index\{[^}]*color:var\(--dsw-alias-label-secondary,currentColor\)/);
+  assert.doesNotMatch(source, /\.dsh-annotations-preview-index\{[^}]*background:/);
+  assert.ok(preview.includes("h('span', { className: 'dsh-annotations-preview-index' }, `${String(index + 1)}.`)"));
   assert.doesNotMatch(preview, /messages.quote|messages.commentLabel|blockquote/);
   assert.match(dock, /window.innerWidth - 16 - dockRef.current.getBoundingClientRect\(\).left - list.offsetWidth/);
   assert.match(preview, /onRemove === undefined \? null/);
