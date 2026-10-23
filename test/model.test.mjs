@@ -348,16 +348,14 @@ test('composer and sent annotations share one hover preview layout', () => {
   assert.match(preview, /onRemove === undefined \? null/);
 });
 
-test('preview expands only truncated text and keeps native full-text tooltips', () => {
+test('preview shows full quote and comment within one scrollable height limit', () => {
   const preview = source.split('function AnnotationPreview(')[1].split('function placeDock(')[0];
-  assert.match(preview, /text.scrollHeight > text.clientHeight \+ 1/);
-  assert.match(preview, /truncated\[index\] \? h\('button'/);
-  assert.match(preview, /'aria-expanded': expandedIndex === index/);
-  assert.match(preview, /event.stopPropagation\(\); setExpandedIndex\(/);
   assert.match(preview, /title: annotation.text/);
   assert.match(preview, /title: annotation.comment/);
-  assert.match(source, /\.dsh-annotations-preview-row-expanded \.dsh-annotations-preview-quote,[^}]+display:block;overflow:visible/);
-  assert.match(source, /\.dsh-annotations-preview\{[^}]+max-height:240px;\s*overflow:auto/);
+  assert.doesNotMatch(preview, /truncated|expandedIndex|preview-expand|scrollHeight/);
+  assert.match(source, /\.dsh-annotations-preview\{[^}]+max-height:360px;\s*overflow:auto/);
+  assert.match(source, /\.dsh-annotations-preview-quote,\.dsh-annotations-preview-comment\{white-space:pre-wrap;overflow-wrap:anywhere/);
+  assert.doesNotMatch(source, /-webkit-line-clamp|\.dsh-annotations-preview-row-expanded|\.dsh-annotations-preview-expand\{/);
 });
 
 test('sent annotation is a hover pill positioned after attachments', () => {

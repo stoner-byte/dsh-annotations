@@ -87,7 +87,7 @@ window.__ModuleLoader__.load({
 .dsh-annotations-card-pill:focus-visible{outline:2px solid var(--dsw-alias-brand-primary,#3b82f6);outline-offset:2px}
 .dsh-annotations-card:has(.dsh-annotations-card-body)::before{content:"";position:absolute;left:0;right:0;bottom:100%;height:8px}
 .dsh-annotations-card[data-annotations-open-below]::before{top:100%;bottom:auto}
-.dsh-annotations-preview{box-sizing:border-box;position:absolute;bottom:calc(100% + 8px);width:min(320px,calc(100vw - 32px));max-height:240px;
+.dsh-annotations-preview{box-sizing:border-box;position:absolute;bottom:calc(100% + 8px);width:min(320px,calc(100vw - 32px));max-height:360px;
   overflow:auto;display:flex;flex-direction:column;gap:6px;padding:8px;border-radius:10px;
   background:var(--dsh-surface-raised,Canvas);border:1px solid var(--dsh-border-subtle,rgba(127,127,127,.24));
   color:var(--dsw-alias-label-primary,currentColor);box-shadow:0 8px 24px rgba(0,0,0,.16);font:400 12px/1.45 var(--dsh-font-family,system-ui,sans-serif)}
@@ -100,13 +100,9 @@ window.__ModuleLoader__.load({
 .dsh-annotations-preview-index{display:grid;place-items:center;min-width:18px;height:18px;border-radius:99px;flex:none;
   background:var(--dsh-accent,#3b82f6);color:#fff;font:600 10.5px/1 var(--dsh-font-family,system-ui,sans-serif)}
 .dsh-annotations-preview-text{display:flex;flex-direction:column;gap:8px;min-width:0;flex:1}
-.dsh-annotations-preview-quote,.dsh-annotations-preview-comment{overflow:hidden;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;font-size:12px}
-.dsh-annotations-preview-row-expanded .dsh-annotations-preview-quote,.dsh-annotations-preview-row-expanded .dsh-annotations-preview-comment{display:block;overflow:visible;white-space:pre-wrap}
+.dsh-annotations-preview-quote,.dsh-annotations-preview-comment{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px}
 .dsh-annotations-preview-quote{opacity:.85}
 .dsh-annotations-preview-comment{opacity:.62}
-.dsh-annotations-preview-expand{align-self:flex-start;border:0;background:transparent;padding:0;color:var(--dsw-alias-brand-primary,#3b82f6);font:inherit;cursor:pointer}
-.dsh-annotations-preview-expand:hover{text-decoration:underline}
-.dsh-annotations-preview-expand:focus-visible{outline:2px solid currentColor;outline-offset:2px}
 .dsh-annotations-preview-row .dsh-annotations-preview-remove{all:unset;flex:none;font-size:11.5px;cursor:pointer;padding:2px 4px;border-radius:5px}
 .dsh-annotations-button-danger,.dsh-annotations-preview-row .dsh-annotations-preview-remove{color:var(--dsw-alias-state-error-primary,#dc2626)}
 .dsh-annotations-preview-row .dsh-annotations-preview-remove:hover,.dsh-annotations-preview-row .dsh-annotations-preview-remove:focus-visible{background:color-mix(in srgb, currentColor 10%, transparent)}
@@ -119,12 +115,12 @@ window.__ModuleLoader__.load({
     const MESSAGES = {
       zh: {
         add: '添加到对话', annotations: '条注释',
-        commentPlaceholder: '添加可选评论…', commentLabel: '用户评论', cancel: '取消', save: '保存', remove: '删除', expand: '展开', collapse: '收起',
+        commentPlaceholder: '添加可选评论…', commentLabel: '用户评论', cancel: '取消', save: '保存', remove: '删除',
         clearAll: '清除全部注释', clearFailed: '无法清除注释。',
       },
       en: {
         add: 'Add to chat', annotations: 'annotations',
-        commentPlaceholder: 'Add an optional comment…', commentLabel: 'Comment', cancel: 'Cancel', save: 'Save', remove: 'Remove', expand: 'Expand', collapse: 'Collapse',
+        commentPlaceholder: 'Add an optional comment…', commentLabel: 'Comment', cancel: 'Cancel', save: 'Save', remove: 'Remove',
         clearAll: 'Delete all annotations', clearFailed: 'Could not delete the annotations.',
       },
     };
@@ -673,24 +669,9 @@ window.__ModuleLoader__.load({
 
     function AnnotationPreview({ annotations, locale, className, onEdit, onRemove }) {
       const messages = MESSAGES[locale];
-      const previewRef = useRef(null);
-      const [expandedIndex, setExpandedIndex] = useState(null);
-      const [truncated, setTruncated] = useState([]);
-      useLayoutEffect(() => {
-        const measure = () => {
-          const rows = previewRef.current?.querySelectorAll('.dsh-annotations-preview-row') ?? [];
-          const next = [...rows].map((row, index) => index === expandedIndex
-            || [...row.querySelectorAll('.dsh-annotations-preview-quote,.dsh-annotations-preview-comment')]
-              .some(text => text.scrollHeight > text.clientHeight + 1));
-          setTruncated(previous => previous.length === next.length && previous.every((value, index) => value === next[index]) ? previous : next);
-        };
-        measure();
-        window.addEventListener('resize', measure);
-        return () => window.removeEventListener('resize', measure);
-      }, [annotations, expandedIndex]);
-      return h('div', { ref: previewRef, className: `dsh-annotations-preview ${className}`, role: 'list' }, annotations.map((annotation, index) => h('div', {
+      return h('div', { className: `dsh-annotations-preview ${className}`, role: 'list' }, annotations.map((annotation, index) => h('div', {
         key: `annotations-preview-${String(index)}`,
-        className: `dsh-annotations-preview-row${onEdit === undefined ? '' : ' dsh-annotations-preview-row-editable'}${expandedIndex === index ? ' dsh-annotations-preview-row-expanded' : ''}`,
+        className: `dsh-annotations-preview-row${onEdit === undefined ? '' : ' dsh-annotations-preview-row-editable'}`,
         role: 'listitem',
         tabIndex: onEdit === undefined ? undefined : 0,
         onClick: onEdit === undefined ? undefined : () => onEdit(index),
@@ -704,10 +685,6 @@ window.__ModuleLoader__.load({
         h('span', { className: 'dsh-annotations-preview-text' },
           h('span', { className: 'dsh-annotations-preview-quote', title: annotation.text }, annotation.text),
           annotation.comment === undefined ? null : h('span', { className: 'dsh-annotations-preview-comment', title: annotation.comment }, annotation.comment),
-          truncated[index] ? h('button', {
-            type: 'button', className: 'dsh-annotations-preview-expand', 'aria-expanded': expandedIndex === index,
-            onClick: event => { event.stopPropagation(); setExpandedIndex(expandedIndex === index ? null : index); },
-          }, expandedIndex === index ? messages.collapse : messages.expand) : null,
         ),
         onRemove === undefined ? null : h('button', {
           type: 'button', className: 'dsh-annotations-preview-remove', onClick: event => { event.stopPropagation(); onRemove(index); },
