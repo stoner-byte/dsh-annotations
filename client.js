@@ -147,24 +147,24 @@ window.__ModuleLoader__.load({
 .dsh-aside-card-pill:focus-visible{outline:2px solid var(--dsw-alias-brand-primary,#3b82f6);outline-offset:2px}
 .dsh-aside-card:has(.dsh-aside-card-body)::before{content:"";position:absolute;left:0;right:0;bottom:100%;height:8px}
 .dsh-aside-card[data-aside-open-below]::before{top:100%;bottom:auto}
-.dsh-aside-preview{box-sizing:border-box;position:absolute;bottom:calc(100% + 8px);width:min(460px,calc(100vw - 32px));max-height:min(330px,50vh);
-  overflow:auto;display:flex;flex-direction:column;padding:14px 16px;border:1px solid var(--dsw-alias-border-l1,rgba(127,127,127,.25));
-  border-radius:12px;background:var(--dsw-alias-bg-overlay,Canvas);color:var(--dsw-alias-label-primary,currentColor);
-  box-shadow:0 10px 28px rgba(0,0,0,.12);font:400 13px/1.5 var(--dsh-font-family,system-ui,sans-serif)}
+.dsh-aside-preview{box-sizing:border-box;position:absolute;bottom:calc(100% + 8px);width:min(320px,calc(100vw - 32px));max-height:240px;
+  overflow:auto;display:flex;flex-direction:column;gap:6px;padding:8px;border-radius:10px;
+  background:var(--dsh-surface-raised,Canvas);border:1px solid var(--dsh-border-subtle,rgba(127,127,127,.24));
+  color:var(--dsw-alias-label-primary,currentColor);box-shadow:0 8px 24px rgba(0,0,0,.16);font:400 12px/1.45 var(--dsh-font-family,system-ui,sans-serif)}
 .dsh-aside-card-body{right:0}
 .dsh-aside-card[data-aside-open-below] .dsh-aside-card-body{top:calc(100% + 8px);bottom:auto}
-.dsh-aside-card-item{display:grid;grid-template-columns:20px minmax(0,1fr);gap:9px;padding:2px 0}
-.dsh-aside-card-item-editable{grid-template-columns:20px minmax(0,1fr) auto;cursor:pointer;border-radius:8px}
-.dsh-aside-card-item-editable:hover,.dsh-aside-card-item-editable:focus-visible{background:color-mix(in srgb, var(--dsw-alias-label-primary,currentColor) 5%, transparent)}
-.dsh-aside-card-item-editable:focus-visible{outline:2px solid var(--dsw-alias-brand-primary,#3b82f6);outline-offset:2px}
-.dsh-aside-card-item-editable button{all:unset;align-self:start;padding:2px 4px;border-radius:5px;cursor:pointer;font-size:12px;color:var(--dsw-alias-label-secondary,currentColor)}
-.dsh-aside-card-item-editable button:hover,.dsh-aside-card-item-editable button:focus-visible{color:var(--dsw-alias-state-error-primary,#dc2626);background:var(--dsw-alias-bg-layer-2,transparent)}
-.dsh-aside-card-item+.dsh-aside-card-item{margin-top:12px;padding-top:14px;border-top:1px solid var(--dsw-alias-border-l1,rgba(127,127,127,.2))}
-.dsh-aside-card-item-index{color:var(--dsw-alias-label-secondary,currentColor);font-size:12px}
-.dsh-aside-card-item-text{display:flex;flex-direction:column;gap:4px;min-width:0}
-.dsh-aside-card-item-label{color:var(--dsw-alias-label-secondary,currentColor);font-size:11px}
-.dsh-aside-card-item-quote,.dsh-aside-card-item-comment{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
-.dsh-aside-card-item-comment{margin-top:4px}
+.dsh-aside-preview-row{display:flex;gap:8px;align-items:flex-start;padding:6px;border-radius:8px}
+.dsh-aside-preview-row-editable{cursor:pointer}
+.dsh-aside-preview-row-editable:hover,.dsh-aside-preview-row-editable:focus-visible{background:color-mix(in srgb, currentColor 6%, transparent)}
+.dsh-aside-preview-row-editable:focus-visible{outline:2px solid var(--dsw-alias-brand-primary,#3b82f6);outline-offset:2px}
+.dsh-aside-preview-index{display:grid;place-items:center;min-width:18px;height:18px;border-radius:99px;flex:none;
+  background:var(--dsh-accent,#3b82f6);color:#fff;font:600 10.5px/1 var(--dsh-font-family,system-ui,sans-serif)}
+.dsh-aside-preview-text{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
+.dsh-aside-preview-quote,.dsh-aside-preview-comment{overflow:hidden;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;font-size:12px}
+.dsh-aside-preview-quote{opacity:.85}
+.dsh-aside-preview-comment{opacity:.62}
+.dsh-aside-preview-row button{all:unset;flex:none;font-size:11.5px;opacity:.6;cursor:pointer;padding:2px 4px;border-radius:5px}
+.dsh-aside-preview-row button:hover,.dsh-aside-preview-row button:focus-visible{opacity:1;background:color-mix(in srgb, currentColor 10%, transparent)}
 .dsh-aside-panel{display:flex;flex-direction:column;height:100%;min-height:0;font:400 13px/1.5 var(--dsh-font-family,system-ui,sans-serif)}
 .dsh-aside-panel-quote{flex:none;margin:10px 12px 0;padding:8px 10px;border-radius:9px;max-height:120px;overflow:auto;white-space:pre-wrap;
   font-size:12px;opacity:.8;background:color-mix(in srgb, var(--dsh-accent,#3b82f6) 9%, transparent);
@@ -706,7 +706,7 @@ window.__ModuleLoader__.load({
       const messages = MESSAGES[locale];
       return h('div', { className: `dsh-aside-preview ${className}`, role: 'list' }, annotations.map((annotation, index) => h('div', {
         key: `aside-preview-${String(index)}`,
-        className: `dsh-aside-card-item${onEdit === undefined ? '' : ' dsh-aside-card-item-editable'}`,
+        className: `dsh-aside-preview-row${onEdit === undefined ? '' : ' dsh-aside-preview-row-editable'}`,
         role: 'listitem',
         tabIndex: onEdit === undefined ? undefined : 0,
         onClick: onEdit === undefined ? undefined : event => onEdit(index, event.currentTarget.getBoundingClientRect()),
@@ -716,12 +716,10 @@ window.__ModuleLoader__.load({
           onEdit(index, event.currentTarget.getBoundingClientRect());
         },
       },
-        h('span', { className: 'dsh-aside-card-item-index' }, `${String(index + 1)}.`),
-        h('div', { className: 'dsh-aside-card-item-text' },
-          h('span', { className: 'dsh-aside-card-item-label' }, `${messages.quote}:`),
-          h('blockquote', { className: 'dsh-aside-card-item-quote' }, annotation.text),
-          annotation.comment === undefined ? null : h('span', { className: 'dsh-aside-card-item-label' }, `${messages.commentLabel}:`),
-          annotation.comment === undefined ? null : h('div', { className: 'dsh-aside-card-item-comment' }, annotation.comment),
+        h('span', { className: 'dsh-aside-preview-index' }, String(index + 1)),
+        h('span', { className: 'dsh-aside-preview-text' },
+          h('span', { className: 'dsh-aside-preview-quote' }, annotation.text),
+          annotation.comment === undefined ? null : h('span', { className: 'dsh-aside-preview-comment' }, annotation.comment),
         ),
         onRemove === undefined ? null : h('button', {
           type: 'button', onClick: event => { event.stopPropagation(); onRemove(index); },

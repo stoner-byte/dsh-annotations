@@ -150,10 +150,13 @@ test('composer and sent annotations share one hover preview layout', () => {
   const preview = source.split('function AsidePreview(')[1].split('function placeDock(')[0];
   assert.match(dock, /h\(AsidePreview, \{\s*annotations, locale, className: 'dsh-aside-list'/);
   assert.match(sent, /h\(AsidePreview, \{ annotations, locale, className: 'dsh-aside-card-body' \}\)/);
-  assert.match(source, /\.dsh-aside-preview\{[^}]*width:min\(460px,calc\(100vw - 32px\)\)/);
+  assert.match(source, /\.dsh-aside-preview\{[^}]*width:min\(320px,calc\(100vw - 32px\)\)/);
+  assert.match(source, /background:var\(--dsh-surface-raised,Canvas\)/);
+  assert.match(source, /\.dsh-aside-preview-index\{[^}]*background:var\(--dsh-accent,#3b82f6\)/);
+  assert.match(preview, /className: 'dsh-aside-preview-index' \}, String\(index \+ 1\)/);
+  assert.doesNotMatch(preview, /messages.quote|messages.commentLabel|blockquote/);
   assert.match(dock, /window.innerWidth - 16 - dockRef.current.getBoundingClientRect\(\).left - list.offsetWidth/);
   assert.match(preview, /onRemove === undefined \? null/);
-  assert.doesNotMatch(source, /dsh-aside-list-quote|dsh-aside-list-row/);
 });
 
 test('sent annotation is a hover pill positioned after attachments', () => {
