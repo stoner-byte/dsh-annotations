@@ -26,9 +26,10 @@ window.__ModuleLoader__.load({
     const MARKER_SIZE = 18;
     const BAR_HEIGHT = 36;
     const BAR_WIDTH = 140;
+    const TRANSCRIPT_OVERLAY_Z = 81;
 
     const STYLES = `
-.dsh-annotations-bar{box-sizing:border-box;position:absolute;z-index:5;display:flex;align-items:center;gap:2px;height:${BAR_HEIGHT}px;padding:3px;border-radius:12px;
+.dsh-annotations-bar{box-sizing:border-box;position:absolute;z-index:${TRANSCRIPT_OVERLAY_Z};display:flex;align-items:center;gap:2px;height:${BAR_HEIGHT}px;padding:3px;border-radius:12px;
   background:var(--dsw-alias-bg-layer-1,Canvas);color:var(--dsw-alias-label-primary,CanvasText);
   border:1px solid var(--dsw-alias-border-l1,rgba(127,127,127,.28));box-shadow:0 8px 24px rgba(0,0,0,.16);
   font:500 12.5px/1.2 var(--dsh-font-family,system-ui,sans-serif);white-space:nowrap}
@@ -36,7 +37,7 @@ window.__ModuleLoader__.load({
 .dsh-annotations-bar button:hover,.dsh-annotations-bar button:focus-visible{background:var(--dsw-alias-bg-layer-2,rgba(127,127,127,.1))}
 .dsh-annotations-bar button:focus-visible{outline:2px solid var(--dsw-alias-brand-primary,Highlight);outline-offset:1px}
 .dsh-annotations-bar svg{width:15px;height:15px;flex:none;opacity:.85}
-.dsh-annotations-editor{box-sizing:border-box;position:relative;z-index:81;width:320px;display:flex;flex-direction:column;gap:8px;padding:10px;border-radius:12px;overflow:auto;
+.dsh-annotations-editor{box-sizing:border-box;position:relative;width:320px;display:flex;flex-direction:column;gap:8px;padding:10px;border-radius:12px;overflow:auto;
   background:var(--dsw-alias-bg-layer-1,Canvas);color:var(--dsw-alias-label-primary,CanvasText);border:1px solid var(--dsw-alias-border-l1,rgba(127,127,127,.28));
   box-shadow:0 12px 32px rgba(0,0,0,.2);font:400 13px/1.45 var(--dsh-font-family,system-ui,sans-serif)}
 .dsh-annotations-editor-quote{max-height:96px;overflow:auto;padding:6px 8px;border-radius:8px;font-size:12px;
@@ -58,7 +59,7 @@ window.__ModuleLoader__.load({
 .dsh-annotations-delete svg{width:16px;height:16px}
 .dsh-annotations-delete:hover,.dsh-annotations-delete:focus-visible{background:color-mix(in srgb, currentColor 10%, transparent)}
 .dsh-annotations-delete:focus-visible{outline:2px solid currentColor;outline-offset:1px}
-.dsh-annotations-marker{position:absolute;z-index:1;display:grid;place-items:center;width:18px;height:18px;border-radius:7px;
+.dsh-annotations-marker{position:absolute;z-index:${TRANSCRIPT_OVERLAY_Z - 1};display:grid;place-items:center;width:18px;height:18px;border-radius:7px;
   background:var(--dsw-alias-brand-primary,Highlight);color:var(--dsw-alias-bg-base,Canvas);font:600 10.5px/1 var(--dsh-font-family,system-ui,sans-serif);
   cursor:pointer;border:none;box-shadow:0 2px 6px rgba(0,0,0,.2);padding:0}
 .dsh-annotations-marker:focus-visible{outline:2px solid var(--dsw-alias-brand-primary,Highlight);outline-offset:2px}
@@ -1380,7 +1381,7 @@ window.__ModuleLoader__.load({
       const floatingEditor = editor === null ? null : h('div', {
         ref: editorBoxRef,
         style: { position: editorScroll === undefined ? 'fixed' : 'absolute',
-          top: `${String(editor.placed.top)}px`, left: `${String(editor.placed.left)}px`, zIndex: 81 },
+          top: `${String(editor.placed.top)}px`, left: `${String(editor.placed.left)}px`, zIndex: TRANSCRIPT_OVERLAY_Z },
       },
         h(AnnotationEditor, {
           locale: language,

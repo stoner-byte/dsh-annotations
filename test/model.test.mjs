@@ -319,14 +319,14 @@ test('badge uses scroll-content coordinates inside the scrollport', () => {
   scroll.scrollTop += 100;
   assert.deepEqual(api.placeMarker({ top: 235, right: 739 }, scroll), { top: 492, left: 641 });
   const overlay = source.split('function AnnotationOverlay(')[1].split('function focusComposer(')[0];
-  assert.match(source, /\.dsh-annotations-marker\{position:absolute;z-index:1;/);
+  assert.match(source, /\.dsh-annotations-marker\{position:absolute;z-index:\$\{TRANSCRIPT_OVERLAY_Z - 1\};/);
   assert.match(overlay, /scroll.append\(marker\)/);
   assert.match(overlay, /for \(const marker of markers.values\(\)\) marker.remove\(\)/);
   assert.match(overlay, /scroll.style.position = previousPosition/);
   assert.doesNotMatch(overlay, /addEventListener\('scroll'|markers.map\(/);
 });
 
-test('transcript controls use scroll coordinates and detached editor falls back to fixed', () => {
+test('transcript controls share a high layer, scroll with the text and fall back to fixed', () => {
   const scroll = {
     getBoundingClientRect: () => ({ top: 80, left: 100, right: 500, bottom: 700 }),
     clientTop: 1, clientLeft: 2, scrollTop: 260, scrollLeft: 40,
@@ -353,6 +353,9 @@ test('transcript controls use scroll coordinates and detached editor falls back 
   assert.match(overlay, /bar === null \? null : createPortal\(h\('div'/);
   assert.match(overlay, /createPortal\(floatingEditor, editorScroll\)/);
   assert.match(overlay, /editorScroll === undefined \? 'fixed' : 'absolute'/);
+  assert.match(source, /const TRANSCRIPT_OVERLAY_Z = 81;/);
+  assert.match(source, /\.dsh-annotations-bar\{[^}]*z-index:\$\{TRANSCRIPT_OVERLAY_Z\};/);
+  assert.match(overlay, /zIndex: TRANSCRIPT_OVERLAY_Z/);
   assert.match(overlay, /seed\.sessionId !== access\.currentSessionId\(\)/);
   assert.match(overlay, /event\.pointerType !== 'mouse'/);
   assert.doesNotMatch(overlay, /addEventListener\('scroll'/);
@@ -443,7 +446,8 @@ test('annotation surfaces, actions, and highlights follow DSH theme tokens', () 
     assert.match(block, /background:var\(--dsw-alias-bg-layer-1,Canvas\)/);
   }
   assert.match(css, /\.dsh-annotations-button-primary\{background:var\(--dsw-alias-brand-primary,Highlight\)/);
-  assert.match(css, /\.dsh-annotations-marker\{[^}]*background:var\(--dsw-alias-brand-primary,Highlight\)/);
+  const marker = css.split('.dsh-annotations-marker{')[1].split('\n.')[0];
+  assert.match(marker, /background:var\(--dsw-alias-brand-primary,Highlight\)/);
   assert.match(css, /::highlight\(\$\{HIGHLIGHT_ACTIVE\}\)\{background-color:color-mix\(in srgb, var\(--dsw-alias-brand-primary,Highlight\)/);
   assert.match(css, /\.dsh-annotations-editor textarea::placeholder\{color:var\(--dsw-alias-label-secondary,GrayText\)/);
   assert.match(css, /\.dsh-annotations-preview-comment\{color:var\(--dsw-alias-label-secondary,currentColor\)/);
