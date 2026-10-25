@@ -1380,7 +1380,7 @@ window.__ModuleLoader__.load({
       const floatingEditor = editor === null ? null : h('div', {
         ref: editorBoxRef,
         style: { position: editorScroll === undefined ? 'fixed' : 'absolute',
-          top: `${String(editor.placed.top)}px`, left: `${String(editor.placed.left)}px`, zIndex: editorScroll === undefined ? 81 : 5 },
+          top: `${String(editor.placed.top)}px`, left: `${String(editor.placed.left)}px`, zIndex: 81 },
       },
         h(AnnotationEditor, {
           locale: language,
