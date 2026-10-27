@@ -310,7 +310,7 @@ test('the bottom-edge toolbar stays near the mouse while the editor moves inside
   assert.match(source, /areaRef.current\?\.focus\(\)/);
 });
 
-test('badge uses scroll-content coordinates inside the scrollport', () => {
+test('badge uses chat-content coordinates and follows outer scrolling', () => {
   const scroll = {
     getBoundingClientRect: () => ({ top: 80, left: 100 }),
     clientTop: 1, clientLeft: 2, scrollTop: 260, scrollLeft: 0,
@@ -318,12 +318,21 @@ test('badge uses scroll-content coordinates inside the scrollport', () => {
   assert.deepEqual(api.placeMarker({ top: 335, right: 739 }, scroll), { top: 492, left: 641 });
   scroll.scrollTop += 100;
   assert.deepEqual(api.placeMarker({ top: 235, right: 739 }, scroll), { top: 492, left: 641 });
+  let layerTop = 80;
+  const layer = { ...scroll, scrollTop: 0, clientTop: 0, clientLeft: 0,
+    getBoundingClientRect: () => ({ top: layerTop, left: 100 }) };
+  assert.deepEqual(api.placeMarker({ top: 335, right: 739 }, layer), { top: 233, left: 643 });
+  layerTop -= 100;
+  assert.deepEqual(api.placeMarker({ top: 235, right: 739 }, layer), { top: 233, left: 643 });
   const overlay = source.split('function AnnotationOverlay(')[1].split('function focusComposer(')[0];
-  assert.match(source, /\.dsh-annotations-marker\{position:absolute;z-index:\$\{TRANSCRIPT_OVERLAY_Z - 1\};/);
-  assert.match(overlay, /scroll.append\(marker\)/);
+  assert.match(source, /\.dsh-annotations-marker\{position:absolute;z-index:2;/);
+  assert.match(overlay, /scroll.querySelector\('\[data-chat-flow\]'\)\?\.parentElement/);
+  assert.match(overlay, /layer.append\(marker\)/);
+  assert.match(overlay, /placeMarker\(rects\[rects.length - 1\], layer\)/);
   assert.match(overlay, /for \(const marker of markers.values\(\)\) marker.remove\(\)/);
-  assert.match(overlay, /scroll.style.position = previousPosition/);
-  assert.doesNotMatch(overlay, /addEventListener\('scroll'|markers.map\(/);
+  assert.match(overlay, /layer.style.position = previousPosition/);
+  assert.match(overlay, /scroll.style.position = previousScrollPosition/);
+  assert.doesNotMatch(overlay, /scroll.append\(marker\)|addEventListener\('scroll'|markers.map\(/);
 });
 
 test('transcript controls share a high layer, scroll with the text and fall back to fixed', () => {

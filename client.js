@@ -59,7 +59,7 @@ window.__ModuleLoader__.load({
 .dsh-annotations-delete svg{width:16px;height:16px}
 .dsh-annotations-delete:hover,.dsh-annotations-delete:focus-visible{background:color-mix(in srgb, currentColor 10%, transparent)}
 .dsh-annotations-delete:focus-visible{outline:2px solid currentColor;outline-offset:1px}
-.dsh-annotations-marker{position:absolute;z-index:${TRANSCRIPT_OVERLAY_Z - 1};display:grid;place-items:center;width:18px;height:18px;border-radius:7px;
+.dsh-annotations-marker{position:absolute;z-index:2;display:grid;place-items:center;width:18px;height:18px;border-radius:7px;
   background:var(--dsw-alias-brand-primary,Highlight);color:var(--dsw-alias-bg-base,Canvas);font:600 10.5px/1 var(--dsh-font-family,system-ui,sans-serif);
   cursor:pointer;border:none;box-shadow:0 2px 6px rgba(0,0,0,.2);padding:0}
 .dsh-annotations-marker:focus-visible{outline:2px solid var(--dsw-alias-brand-primary,Highlight);outline-offset:2px}
@@ -1093,20 +1093,32 @@ window.__ModuleLoader__.load({
       };
 
       useEffect(() => {
-        // ponytail: one transcript scrollport; nested independent scrollers need their own marker layer.
+        // ponytail: one Chat transcript; independently scrolling message bodies need their own marker layer.
         const scroll = document.querySelector('[data-conversation-scroll]');
         if (!(scroll instanceof HTMLElement)) return;
-        const previousPosition = scroll.style.position;
-        const positioned = getComputedStyle(scroll).position === 'static';
-        if (positioned) scroll.style.position = 'relative';
+        // The selection bar and editor still use the outer scroll as their positioning context.
+        const previousScrollPosition = scroll.style.position;
+        const scrollPositioned = getComputedStyle(scroll).position === 'static';
+        if (scrollPositioned) scroll.style.position = 'relative';
         const markers = new Map();
+        let layer;
+        let previousPosition;
+        let positioned = false;
         const computeMarkers = () => {
+          const next = scroll.querySelector('[data-chat-flow]')?.parentElement;
+          if (next !== layer) {
+            if (positioned && layer?.style.position === 'relative') layer.style.position = previousPosition;
+            layer = next instanceof HTMLElement ? next : undefined;
+            previousPosition = layer?.style.position;
+            positioned = layer !== undefined && getComputedStyle(layer).position === 'static';
+            if (positioned) layer.style.position = 'relative';
+          }
           const active = new Set();
           const highlightRanges = [];
           annotations.forEach((annotation, index) => {
             if (annotation.anchor === undefined) return;
             const found = rootOfAnchor(annotation.anchor.nodeKey, annotation.sessionId);
-            if (found === undefined || !scroll.contains(found.host)) return;
+            if (found === undefined || layer === undefined || !layer.contains(found.host)) return;
             const range = rangeOfAnchor(found.host, annotation.anchor);
             if (range === undefined) return;
             highlightRanges.push(range);
@@ -1123,8 +1135,8 @@ window.__ModuleLoader__.load({
               marker.addEventListener('click', () => access.openAnnotation?.(index));
               markers.set(index, marker);
             }
-            if (marker.parentElement !== scroll) scroll.append(marker);
-            const placed = placeMarker(rects[rects.length - 1], scroll);
+            if (marker.parentElement !== layer) layer.append(marker);
+            const placed = placeMarker(rects[rects.length - 1], layer);
             marker.style.top = `${String(placed.top)}px`;
             marker.style.left = `${String(placed.left)}px`;
             active.add(index);
@@ -1155,7 +1167,8 @@ window.__ModuleLoader__.load({
           observer?.disconnect();
           resize?.disconnect();
           for (const marker of markers.values()) marker.remove();
-          if (positioned && scroll.style.position === 'relative') scroll.style.position = previousPosition;
+          if (positioned && layer?.style.position === 'relative') layer.style.position = previousPosition;
+          if (scrollPositioned && scroll.style.position === 'relative') scroll.style.position = previousScrollPosition;
           if (typeof CSS !== 'undefined' && CSS.highlights !== undefined) CSS.highlights.delete(HIGHLIGHT_ALL);
         };
       }, [annotations, access]);
