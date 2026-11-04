@@ -335,7 +335,7 @@ test('badge uses chat-content coordinates and follows outer scrolling', () => {
   layerTop -= 100;
   assert.deepEqual(api.placeMarker({ top: 235, right: 739 }, layer), { top: 233, left: 643 });
   const overlay = source.split('function AnnotationOverlay(')[1].split('function focusComposer(')[0];
-  assert.match(source, /\.dsh-annotations-marker\{position:absolute;z-index:2;/);
+  assert.match(source, /\.dsh-annotations-marker\{position:absolute;z-index:7;/);
   assert.match(overlay, /scroll.querySelector\('\[data-chat-flow\]'\)\?\.parentElement/);
   assert.match(overlay, /layer.append\(marker\)/);
   assert.match(overlay, /const rects = \[\.\.\.range.getClientRects\(\)\]\.filter\(rect => rect.height > 0 && rect.width > 0\)/);
@@ -431,7 +431,9 @@ test('composer and sent annotations share one hover preview layout', () => {
   assert.match(dock, /h\(AnnotationPreview, \{\s*annotations, locale: language, className: 'dsh-annotations-list'/);
   assert.match(sent, /h\(AnnotationPreview, \{ annotations, locale: language, className: 'dsh-annotations-card-body' \}\)/);
   assert.match(source, /\.dsh-annotations-preview\{[^}]*width:min\(320px,calc\(100vw - 32px\)\)/);
-  assert.match(source, /\.dsh-annotations-dock:has\(\.dsh-annotations-list\),\.dsh-annotations-card:has\(\.dsh-annotations-card-body\)\{z-index:6\}/);
+  assert.match(source, /\.dsh-annotations-dock:has\(\.dsh-annotations-list\)\{z-index:6\}/);
+  assert.match(source, /\.dsh-annotations-card\{position:relative;z-index:8;/);
+  assert.match(source, /\.dsh-annotations-card:has\(\.dsh-annotations-card-body\)\{z-index:9\}/);
   assert.match(source, /\.dsh-annotations-preview\{[^}]*background:var\(--dsw-alias-bg-layer-1,Canvas\)/);
   assert.match(source, /\.dsh-annotations-preview-index\{[^}]*color:var\(--dsw-alias-label-secondary,currentColor\)/);
   assert.doesNotMatch(source, /\.dsh-annotations-preview-index\{[^}]*background:/);

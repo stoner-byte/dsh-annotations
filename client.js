@@ -59,7 +59,7 @@ window.__ModuleLoader__.load({
 .dsh-annotations-delete svg{width:16px;height:16px}
 .dsh-annotations-delete:hover,.dsh-annotations-delete:focus-visible{background:color-mix(in srgb, currentColor 10%, transparent)}
 .dsh-annotations-delete:focus-visible{outline:2px solid currentColor;outline-offset:1px}
-.dsh-annotations-marker{position:absolute;z-index:2;display:grid;place-items:center;width:18px;height:18px;border-radius:7px;
+.dsh-annotations-marker{position:absolute;z-index:7;display:grid;place-items:center;width:18px;height:18px;border-radius:7px;
   background:var(--dsw-alias-brand-primary,Highlight);color:var(--dsw-alias-bg-base,Canvas);font:600 10.5px/1 var(--dsh-font-family,system-ui,sans-serif);
   cursor:pointer;border:none;box-shadow:0 2px 6px rgba(0,0,0,.2);padding:0}
 .dsh-annotations-marker:focus-visible{outline:2px solid var(--dsw-alias-brand-primary,Highlight);outline-offset:2px}
@@ -83,9 +83,10 @@ window.__ModuleLoader__.load({
 .dsh-annotations-message-body{align-self:stretch;min-width:0}
 .dsh-annotations-message[data-annotations-after-attachments] [data-message-attachments]{margin-bottom:38px}
 .dsh-annotations-message[data-annotations-after-attachments] .dsh-annotations-card{position:absolute;right:0;top:var(--dsh-annotations-sent-top,0px)}
-.dsh-annotations-card{position:relative;z-index:4;align-self:flex-end;width:fit-content;max-width:100%;
+.dsh-annotations-card{position:relative;z-index:8;align-self:flex-end;width:fit-content;max-width:100%;
   font:500 12.5px/1 var(--dsh-font-family,system-ui,sans-serif)}
-.dsh-annotations-dock:has(.dsh-annotations-list),.dsh-annotations-card:has(.dsh-annotations-card-body){z-index:6}
+.dsh-annotations-dock:has(.dsh-annotations-list){z-index:6}
+.dsh-annotations-card:has(.dsh-annotations-card-body){z-index:9}
 .dsh-annotations-card-pill{display:inline-flex;align-items:center;gap:7px;height:30px;padding:0 11px;border:1px solid var(--dsw-alias-border-l1,rgba(127,127,127,.25));
   border-radius:9px;background:var(--dsw-alias-bg-layer-1,Canvas);color:var(--dsw-alias-label-primary,currentColor);
   font:500 12.5px/1 var(--dsh-font-family,system-ui,sans-serif);cursor:default;white-space:nowrap}
