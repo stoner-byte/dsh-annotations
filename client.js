@@ -507,11 +507,11 @@ window.__ModuleLoader__.load({
       let endOffset;
       for (const node of nodes) {
         const length = node.nodeValue?.length ?? 0;
-        if (startNode === undefined && anchor.startOffset >= total && anchor.startOffset <= total + length) {
+        if (anchor.startOffset >= total && anchor.startOffset <= total + length) {
           startNode = node;
           startOffset = anchor.startOffset - total;
         }
-        if (anchor.endOffset >= total && anchor.endOffset <= total + length) {
+        if (endNode === undefined && anchor.endOffset >= total && anchor.endOffset <= total + length) {
           endNode = node;
           endOffset = anchor.endOffset - total;
         }
@@ -1122,7 +1122,7 @@ window.__ModuleLoader__.load({
             const range = rangeOfAnchor(found.host, annotation.anchor);
             if (range === undefined) return;
             highlightRanges.push(range);
-            const rects = [...range.getClientRects()].filter(rect => rect.height > 0);
+            const rects = [...range.getClientRects()].filter(rect => rect.height > 0 && rect.width > 0);
             if (rects.length === 0) return;
             let marker = markers.get(index);
             if (marker === undefined) {
@@ -1503,6 +1503,7 @@ window.__ModuleLoader__.load({
         MESSAGES,
         annotationCount,
         offsetsOf,
+        rangeOfAnchor,
         rangeEndingInHost,
         serializeAnnotations,
         parseAnnotationContext,

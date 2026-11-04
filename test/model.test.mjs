@@ -208,16 +208,18 @@ test('whole-paragraph boundaries retain text offsets across inline controls', ()
   const visible = { nodeType: 3, nodeValue: 'abc', position: 0, parentElement: { closest: () => null } };
   const skipped = { nodeType: 3, nodeValue: 'x', position: 3, parentElement: { closest: () => ({}) } };
   const following = { nodeType: 3, nodeValue: 'def', position: 4, parentElement: { closest: () => null } };
+  const trailing = { nodeType: 3, nodeValue: '', position: 7, parentElement: { closest: () => null } };
   const firstParagraph = { boundaries: [0, 3] };
   const secondParagraph = { boundaries: [4, 7] };
   const position = (node, offset) => node.nodeType === 3 ? node.position + offset : node.boundaries[offset];
   globalThis.document = {
     createTreeWalker: () => {
-      const nodes = [visible, skipped, following];
+      const nodes = [visible, skipped, following, trailing];
       return { nextNode: () => nodes.shift() ?? null };
     },
     createRange: () => ({
-      setStart(node, offset) { this.position = position(node, offset); },
+      setStart(node, offset) { this.startNode = node; this.startOffset = offset; this.position = position(node, offset); },
+      setEnd(node, offset) { this.endNode = node; this.endOffset = offset; },
       collapse() {},
       comparePoint(node, offset) { return Math.sign(position(node, offset) - this.position); },
     }),
@@ -235,6 +237,14 @@ test('whole-paragraph boundaries retain text offsets across inline controls', ()
     assert.equal(api.offsetsOf({}, {
       startContainer: skipped, startOffset: 0, endContainer: following, endOffset: 2,
     }), undefined);
+    const first = api.rangeOfAnchor({}, { startOffset: 0, endOffset: 3 });
+    assert.equal(first.endNode, visible);
+    assert.equal(first.endOffset, 3);
+    const second = api.rangeOfAnchor({}, { startOffset: 3, endOffset: 6 });
+    assert.equal(second.startNode, following);
+    assert.equal(second.startOffset, 0);
+    assert.equal(second.endNode, following);
+    assert.equal(second.endOffset, 3);
   } finally {
     globalThis.document = previousDocument;
     globalThis.NodeFilter = previousNodeFilter;
@@ -328,6 +338,7 @@ test('badge uses chat-content coordinates and follows outer scrolling', () => {
   assert.match(source, /\.dsh-annotations-marker\{position:absolute;z-index:2;/);
   assert.match(overlay, /scroll.querySelector\('\[data-chat-flow\]'\)\?\.parentElement/);
   assert.match(overlay, /layer.append\(marker\)/);
+  assert.match(overlay, /const rects = \[\.\.\.range.getClientRects\(\)\]\.filter\(rect => rect.height > 0 && rect.width > 0\)/);
   assert.match(overlay, /placeMarker\(rects\[rects.length - 1\], layer\)/);
   assert.match(overlay, /for \(const marker of markers.values\(\)\) marker.remove\(\)/);
   assert.match(overlay, /layer.style.position = previousPosition/);
