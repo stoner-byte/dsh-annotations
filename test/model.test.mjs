@@ -431,6 +431,7 @@ test('composer and sent annotations share one hover preview layout', () => {
   assert.match(dock, /h\(AnnotationPreview, \{\s*annotations, locale: language, className: 'dsh-annotations-list'/);
   assert.match(sent, /h\(AnnotationPreview, \{ annotations, locale: language, className: 'dsh-annotations-card-body' \}\)/);
   assert.match(source, /\.dsh-annotations-preview\{[^}]*width:min\(320px,calc\(100vw - 32px\)\)/);
+  assert.match(source, /\[data-conversation-scroll\] :has\(> \[data-chat-flow\]\)\{isolation:isolate\}/);
   assert.match(source, /\.dsh-annotations-dock:has\(\.dsh-annotations-list\)\{z-index:6\}/);
   assert.match(source, /\.dsh-annotations-card\{position:relative;z-index:8;/);
   assert.match(source, /\.dsh-annotations-card:has\(\.dsh-annotations-card-body\)\{z-index:9\}/);

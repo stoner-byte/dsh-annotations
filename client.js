@@ -63,6 +63,7 @@ window.__ModuleLoader__.load({
   background:var(--dsw-alias-brand-primary,Highlight);color:var(--dsw-alias-bg-base,Canvas);font:600 10.5px/1 var(--dsh-font-family,system-ui,sans-serif);
   cursor:pointer;border:none;box-shadow:0 2px 6px rgba(0,0,0,.2);padding:0}
 .dsh-annotations-marker:focus-visible{outline:2px solid var(--dsw-alias-brand-primary,Highlight);outline-offset:2px}
+[data-conversation-scroll] :has(> [data-chat-flow]){isolation:isolate}
 .dsh-annotations-dock{position:absolute;top:8px;left:14px;z-index:3;display:flex;flex-direction:column;gap:6px;max-width:calc(100% - 28px)}
 [data-composer-seat]:has(.dsh-annotations-dock) [data-composer-input]{padding-top:39px}
 [data-composer-seat]:has(.dsh-annotations-dock) [data-composer-placeholder]{transform:translateY(35px)}
