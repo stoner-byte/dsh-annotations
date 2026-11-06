@@ -530,11 +530,18 @@ window.__ModuleLoader__.load({
       return range;
     }
 
+    function findByAttribute(root, name, value) {
+      // ponytail: linear DOM scan per anchor; index nodes if marker updates become a measured hot path.
+      for (const element of root?.querySelectorAll(`[${name}]`) ?? []) {
+        if (element.getAttribute(name) === value) return element;
+      }
+    }
+
     function rootOfAnchor(nodeKey, sessionId) {
-      const root = (sessionId === undefined ? null : document.querySelector(`[data-conversation-session="${CSS.escape(sessionId)}"]`))
+      const root = (sessionId === undefined ? undefined : findByAttribute(document, 'data-conversation-session', sessionId))
         ?? document.querySelector('[data-conversation-scroll]')?.closest('[data-conversation-session]');
-      const host = root?.querySelector(`[data-chat-anchor-key="${CSS.escape(nodeKey)}"]`);
-      if (host !== null && host !== undefined) return { root, host };
+      const host = findByAttribute(root, 'data-chat-anchor-key', nodeKey);
+      if (host !== undefined) return { root, host };
     }
 
     /** The visual line under a double-click: the caret's own text node,
@@ -1506,6 +1513,7 @@ window.__ModuleLoader__.load({
         annotationCount,
         offsetsOf,
         rangeOfAnchor,
+        rootOfAnchor,
         rangeEndingInHost,
         serializeAnnotations,
         parseAnnotationContext,

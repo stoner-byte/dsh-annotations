@@ -252,6 +252,37 @@ test('whole-paragraph boundaries retain text offsets across inline controls', ()
   }
 });
 
+test('anchor lookup works without CSS.escape and matches special keys exactly', () => {
+  const previousDocument = globalThis.document;
+  const previousCSS = globalThis.CSS;
+  const sessionId = 'session"]\\odd';
+  const nodeKey = 'step["quoted"]\\key';
+  const host = { getAttribute: () => nodeKey };
+  const root = {
+    getAttribute: () => sessionId,
+    querySelectorAll: selector => {
+      assert.equal(selector, '[data-chat-anchor-key]');
+      return [{ getAttribute: () => `${nodeKey}-other` }, host];
+    },
+  };
+  globalThis.document = {
+    querySelectorAll: selector => {
+      assert.equal(selector, '[data-conversation-session]');
+      return [{ getAttribute: () => `${sessionId}-other` }, root];
+    },
+    querySelector: () => ({ closest: () => root }),
+  };
+  globalThis.CSS = {};
+  try {
+    assert.deepEqual(api.rootOfAnchor(nodeKey, sessionId), { root, host });
+    assert.deepEqual(api.rootOfAnchor(nodeKey, undefined), { root, host });
+    assert.equal(api.rootOfAnchor('other', sessionId), undefined);
+  } finally {
+    globalThis.document = previousDocument;
+    globalThis.CSS = previousCSS;
+  }
+});
+
 test('a selection ending on the next message boundary stays in its own message', () => {
   const previousDocument = globalThis.document;
   const previousNodeFilter = globalThis.NodeFilter;
@@ -412,7 +443,6 @@ test('composer entries scroll to loaded text and share the badge editor', () => 
   assert.match(dock, /onEdit: \(index\) => \{ setExpanded\(false\); onEdit\(index\); \}/);
   assert.match(source, /onEdit: index => access.openAnnotation\?\.\(index, true\)/);
   assert.match(overlay, /access.openAnnotation = openAnnotation/);
-  assert.match(source, /sessionId === undefined \? null : document.querySelector\(`/);
   assert.match(source, /document.querySelector\('\[data-conversation-scroll\]'\)\?\.closest\('\[data-conversation-session\]'\)/);
   assert.match(overlay, /marker.addEventListener\('click', \(\) => access.openAnnotation\?\.\(index\)\)/);
   assert.match(overlay, /for \(const scroll of target.scrollports\)/);
