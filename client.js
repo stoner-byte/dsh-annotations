@@ -80,10 +80,10 @@ window.__ModuleLoader__.load({
 .dsh-annotations-close:focus-visible{outline:2px solid var(--dsw-alias-brand-primary,Highlight);outline-offset:1px}
 .dsh-annotations-dock:has(.dsh-annotations-list)::before{content:"";position:absolute;left:0;right:0;bottom:100%;height:8px}
 .dsh-annotations-list{left:0}
-[data-message-bubble]:has(.dsh-annotations-card){position:relative;margin-bottom:38px}
-[data-message-bubble] .dsh-annotations-card{position:absolute;top:calc(100% + 8px);right:0;width:max-content;max-width:calc(100vw - 32px)}
-[data-message-bubble]:has(.dsh-annotations-card[data-annotations-only]){margin-bottom:0;padding:0;background:none}
-[data-message-bubble] .dsh-annotations-card[data-annotations-only]{position:relative;top:auto;right:auto}
+[data-message-bubble]:has(.dsh-annotations-card){position:relative;margin-top:38px}
+[data-message-bubble] .dsh-annotations-card{position:absolute;bottom:calc(100% + 8px);right:0;width:max-content;max-width:calc(100vw - 32px)}
+[data-message-bubble]:has(.dsh-annotations-card[data-annotations-only]){margin-top:0;padding:0;background:none}
+[data-message-bubble] .dsh-annotations-card[data-annotations-only]{position:relative;bottom:auto;right:auto}
 .dsh-annotations-card{position:relative;z-index:8;display:inline-block;vertical-align:middle;max-width:100%;
   font:500 12.5px/1 var(--dsh-font-family,system-ui,sans-serif)}
 .dsh-annotations-dock:has(.dsh-annotations-list){z-index:6}

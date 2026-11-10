@@ -560,17 +560,17 @@ test('preview shows full quote and comment within one scrollable height limit', 
   assert.doesNotMatch(source, /-webkit-line-clamp|\.dsh-annotations-preview-row-expanded|\.dsh-annotations-preview-expand\{/);
 });
 
-test('sent annotation sits below the native bubble without replacing attachments', () => {
+test('sent annotation sits above the native bubble without replacing attachments', () => {
   const sent = source.split('function AnnotationMessages(')[1].split('const annotationTextRule =')[0];
   assert.equal(api.sentPopoverBelow({ top: 50, bottom: 80 }, 150, 700), true);
   assert.equal(api.sentPopoverBelow({ top: 420, bottom: 450 }, 150, 700), false);
   assert.match(sent, /onMouseEnter: \(\) => setExpanded\(true\)/);
   assert.match(sent, /onFocus: \(\) => setExpanded\(true\)/);
   assert.match(sent, /const resize = new ResizeObserver\(place\)/);
-  assert.match(source, /\[data-message-bubble\]:has\(\.dsh-annotations-card\)\{position:relative;margin-bottom:38px\}/);
-  assert.match(source, /\[data-message-bubble\] \.dsh-annotations-card\{position:absolute;top:calc\(100% \+ 8px\);right:0;width:max-content;max-width:calc\(100vw - 32px\)\}/);
-  assert.match(source, /\[data-message-bubble\]:has\(\.dsh-annotations-card\[data-annotations-only\]\)\{margin-bottom:0;padding:0;background:none\}/);
-  assert.match(source, /\[data-message-bubble\] \.dsh-annotations-card\[data-annotations-only\]\{position:relative;top:auto;right:auto\}/);
+  assert.match(source, /\[data-message-bubble\]:has\(\.dsh-annotations-card\)\{position:relative;margin-top:38px\}/);
+  assert.match(source, /\[data-message-bubble\] \.dsh-annotations-card\{position:absolute;bottom:calc\(100% \+ 8px\);right:0;width:max-content;max-width:calc\(100vw - 32px\)\}/);
+  assert.match(source, /\[data-message-bubble\]:has\(\.dsh-annotations-card\[data-annotations-only\]\)\{margin-top:0;padding:0;background:none\}/);
+  assert.match(source, /\[data-message-bubble\] \.dsh-annotations-card\[data-annotations-only\]\{position:relative;bottom:auto;right:auto\}/);
   assert.doesNotMatch(sent, /querySelector\('\[data-message-attachments\]'\)|onClick: \(\) => setExpanded|▸|▾/);
   assert.doesNotMatch(source, /\[data-message-attachments\]\{margin-bottom:38px\}/);
   assert.doesNotMatch(source, /\.dsh-annotations-card-pill\{[^}]*width:100%/);
