@@ -80,6 +80,10 @@ window.__ModuleLoader__.load({
 .dsh-annotations-close:focus-visible{outline:2px solid var(--dsw-alias-brand-primary,Highlight);outline-offset:1px}
 .dsh-annotations-dock:has(.dsh-annotations-list)::before{content:"";position:absolute;left:0;right:0;bottom:100%;height:8px}
 .dsh-annotations-list{left:0}
+[data-message-bubble]:has(.dsh-annotations-card){position:relative;margin-bottom:38px}
+[data-message-bubble] .dsh-annotations-card{position:absolute;top:calc(100% + 8px);right:0;width:max-content;max-width:calc(100vw - 32px)}
+[data-message-bubble]:has(.dsh-annotations-card[data-annotations-only]){margin-bottom:0;padding:0;background:none}
+[data-message-bubble] .dsh-annotations-card[data-annotations-only]{position:relative;top:auto;right:auto}
 .dsh-annotations-card{position:relative;z-index:8;display:inline-block;vertical-align:middle;max-width:100%;
   font:500 12.5px/1 var(--dsh-font-family,system-ui,sans-serif)}
 .dsh-annotations-dock:has(.dsh-annotations-list){z-index:6}
@@ -952,7 +956,7 @@ window.__ModuleLoader__.load({
       );
     }
 
-    function AnnotationMessages({ annotations, locale }) {
+    function AnnotationMessages({ annotations, locale, only }) {
       const language = useSyncExternalStore(locale.subscribe, locale.getSnapshot);
       const [expanded, setExpanded] = useState(false);
       const cardRef = useRef(null);
@@ -971,7 +975,7 @@ window.__ModuleLoader__.load({
       }, [expanded]);
       if (annotations.length === 0) return null;
       return h('span', {
-        ref: cardRef, className: 'dsh-annotations-card', 'data-annotations-skip': '',
+        ref: cardRef, className: 'dsh-annotations-card', 'data-annotations-skip': '', 'data-annotations-only': only || undefined,
         onMouseEnter: () => setExpanded(true),
         onMouseLeave: () => setExpanded(false),
         onFocus: () => setExpanded(true),
@@ -994,7 +998,10 @@ window.__ModuleLoader__.load({
       match(text, from) {
         const parsed = parseAnnotationContext(text);
         if (parsed === undefined || parsed.start < from) return;
-        return { id: SOURCE, start: parsed.start, end: parsed.end, data: { annotations: parsed.annotations } };
+        return { id: SOURCE, start: parsed.start, end: parsed.end, data: {
+          annotations: parsed.annotations,
+          only: text.slice(0, parsed.start).trim() === '' && text.slice(parsed.end).trim() === '',
+        } };
       },
     };
 
@@ -1414,7 +1421,7 @@ window.__ModuleLoader__.load({
       ctx.effect(() => ctx.uiConversation.userText.register(annotationTextRule), 'dsh-annotations.user-text-rule');
       ctx.effect(() => slots.inject('conversation.user.text.node', () => slots.register({
         name: 'conversation.user.text.node', key: SOURCE,
-      }, ({ node }) => h(AnnotationMessages, { annotations: node.data.annotations, locale }))), 'dsh-annotations.user-text-node');
+      }, ({ node }) => h(AnnotationMessages, { annotations: node.data.annotations, only: node.data.only, locale }))), 'dsh-annotations.user-text-node');
     }
 
     return {
