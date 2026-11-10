@@ -102,6 +102,10 @@ window.__ModuleLoader__.load({
   color:var(--dsw-alias-label-primary,CanvasText);box-shadow:0 8px 24px rgba(0,0,0,.16);font:400 12px/1.45 var(--dsh-font-family,system-ui,sans-serif)}
 .dsh-annotations-card-body{right:0}
 .dsh-annotations-card[data-annotations-open-below] .dsh-annotations-card-body{top:calc(100% + 8px);bottom:auto}
+.dsh-annotations-card-portal{position:fixed;z-index:100;visibility:hidden;box-sizing:border-box;width:min(320px,calc(100vw - 16px));padding-bottom:8px}
+.dsh-annotations-card-portal[data-annotations-placed]{visibility:visible}
+.dsh-annotations-card-portal[data-annotations-open-below]{padding-top:8px;padding-bottom:0}
+.dsh-annotations-card-portal .dsh-annotations-card-body{position:relative;top:auto;right:auto;bottom:auto;width:100%;max-height:min(360px,calc(100vh - 24px))}
 .dsh-annotations-preview-row{display:flex;flex:none;gap:8px;align-items:flex-start;padding:6px;border-radius:8px}
 .dsh-annotations-preview-row-editable{cursor:pointer}
 .dsh-annotations-preview-row-editable:hover,.dsh-annotations-preview-row-editable:focus-visible{background:var(--dsw-alias-bg-layer-2,rgba(127,127,127,.1))}
@@ -764,6 +768,15 @@ window.__ModuleLoader__.load({
       return card.top < height + 8 && viewportHeight - card.bottom > card.top;
     }
 
+    function placeQueuedPopover(card, preview, viewport) {
+      const below = sentPopoverBelow(card, preview.height, viewport.height);
+      return {
+        below,
+        top: clamp(below ? card.bottom : card.top - preview.height - 8, 8, viewport.height - preview.height - 16),
+        left: clamp(card.right - preview.width, 8, viewport.width - preview.width - 8),
+      };
+    }
+
     function preserveAnnotationOnDelete(input, key) {
       if (input === undefined) return false;
       const snapshot = input.state.getSnapshot();
@@ -959,27 +972,62 @@ window.__ModuleLoader__.load({
     function AnnotationMessages({ annotations, locale, only }) {
       const language = useSyncExternalStore(locale.subscribe, locale.getSnapshot);
       const [expanded, setExpanded] = useState(false);
+      const [portaled, setPortaled] = useState(false);
       const cardRef = useRef(null);
+      const portalRef = useRef(null);
       const messages = MESSAGES[language];
       useLayoutEffect(() => {
         if (!expanded) return;
         const card = cardRef.current;
-        const preview = card?.querySelector('.dsh-annotations-card-body');
+        const container = portaled ? portalRef.current : card;
+        const preview = container?.querySelector('.dsh-annotations-card-body');
         if (!card || !preview) return;
-        const place = () => card.toggleAttribute('data-annotations-open-below',
-          sentPopoverBelow(card.getBoundingClientRect(), preview.getBoundingClientRect().height, window.innerHeight));
+        const place = () => {
+          const rect = card.getBoundingClientRect();
+          const height = preview.getBoundingClientRect().height;
+          if (!portaled) {
+            card.toggleAttribute('data-annotations-open-below', sentPopoverBelow(rect, height, window.innerHeight));
+            return;
+          }
+          const positioned = placeQueuedPopover(rect, { width: preview.offsetWidth, height },
+            { width: window.innerWidth, height: window.innerHeight });
+          container.style.top = `${String(positioned.top)}px`;
+          container.style.left = `${String(positioned.left)}px`;
+          container.toggleAttribute('data-annotations-open-below', positioned.below);
+          container.setAttribute('data-annotations-placed', '');
+        };
         const resize = new ResizeObserver(place);
         resize.observe(preview);
+        if (portaled) resize.observe(card);
         place();
-        return () => resize.disconnect();
-      }, [expanded]);
+        if (portaled) {
+          window.addEventListener('scroll', place, true);
+          window.addEventListener('resize', place);
+        }
+        return () => {
+          resize.disconnect();
+          if (portaled) {
+            window.removeEventListener('scroll', place, true);
+            window.removeEventListener('resize', place);
+          }
+        };
+      }, [expanded, portaled]);
       if (annotations.length === 0) return null;
+      const open = event => {
+        setPortaled(!!event.currentTarget.closest('[data-queue-dock]'));
+        setExpanded(true);
+      };
+      const leave = event => {
+        const next = event.relatedTarget;
+        if (!cardRef.current?.contains(next) && !portalRef.current?.contains(next)) setExpanded(false);
+      };
+      const preview = expanded ? h(AnnotationPreview, { annotations, locale: language, className: 'dsh-annotations-card-body' }) : null;
       return h('span', {
         ref: cardRef, className: 'dsh-annotations-card', 'data-annotations-skip': '', 'data-annotations-only': only || undefined,
-        onMouseEnter: () => setExpanded(true),
-        onMouseLeave: () => setExpanded(false),
-        onFocus: () => setExpanded(true),
-        onBlur: event => { if (!event.currentTarget.contains(event.relatedTarget)) setExpanded(false); },
+        onMouseEnter: open,
+        onMouseLeave: leave,
+        onFocus: open,
+        onBlur: leave,
       },
         h('button', { type: 'button', className: 'dsh-annotations-card-pill', 'aria-expanded': expanded },
           h('svg', { width: 16, height: 16, viewBox: '0 0 20 20', fill: 'none', stroke: 'currentColor',
@@ -988,7 +1036,10 @@ window.__ModuleLoader__.load({
             h('path', { d: 'M6.5 8h7m-7 3h4.5' })),
           annotationCount(annotations.length, messages),
         ),
-        expanded ? h(AnnotationPreview, { annotations, locale: language, className: 'dsh-annotations-card-body' }) : null,
+        portaled && preview ? createPortal(h('span', {
+          ref: portalRef, className: 'dsh-annotations-card-portal', 'data-annotations-skip': '',
+          onMouseLeave: leave, onBlur: leave,
+        }, preview), document.body) : preview,
       );
     }
 
@@ -1453,6 +1504,7 @@ window.__ModuleLoader__.load({
         placeMarker,
         placeDock,
         sentPopoverBelow,
+        placeQueuedPopover,
         editsAnnotationChip,
         preserveAnnotationOnDelete,
         clamp,

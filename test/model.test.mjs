@@ -111,8 +111,10 @@ test('sent annotations render at the beginning, middle, or end without changing 
 });
 
 test('native user-text rule preserves surrounding text and renders the sent preview', () => {
+  let stateIndex = 0;
+  const updates = [];
   const elements = { ...react, createElement: (type, props, ...children) => ({ type, props: props ?? {}, children }),
-    useState: () => [true, () => {}] };
+    useState: () => { const index = stateIndex++; return [index === 0, value => updates.push([index, value])]; } };
   const plugin = module.factory(name => name === 'react' ? elements : { createPortal: node => node });
   let rule;
   let renderer;
@@ -146,6 +148,11 @@ test('native user-text rule preserves surrounding text and renders the sent prev
   const pill = expand(renderer({ node: candidate, raw: xml, interactive: false }));
   assert.equal(pill.type, 'span');
   assert.equal(pill.props.className, 'dsh-annotations-card');
+  pill.props.onMouseEnter({ currentTarget: { closest: () => ({}) } });
+  assert.deepEqual(updates, [[1, true], [0, true]]);
+  updates.length = 0;
+  pill.props.onFocus({ currentTarget: { closest: () => null } });
+  assert.deepEqual(updates, [[1, false], [0, true]]);
   assert.equal(pill.children[0].type, 'button');
   assert.match(pill.children[0].children.at(-1), /1 条注释/);
   const preview = expand(pill.children[1]);
@@ -502,7 +509,7 @@ test('composer and sent annotations share one hover preview layout', () => {
   const sent = source.split('function AnnotationMessages(')[1].split('const annotationTextRule =')[0];
   const preview = source.split('function AnnotationPreview(')[1].split('function placeDock(')[0];
   assert.match(dock, /h\(AnnotationPreview, \{\s*annotations, locale: language, className: 'dsh-annotations-list'/);
-  assert.match(sent, /h\(AnnotationPreview, \{ annotations, locale: language, className: 'dsh-annotations-card-body' \}\)/);
+  assert.match(sent, /const preview = expanded \? h\(AnnotationPreview, \{ annotations, locale: language, className: 'dsh-annotations-card-body' \}\)/);
   assert.match(source, /\.dsh-annotations-preview\{[^}]*width:min\(320px,calc\(100vw - 32px\)\)/);
   assert.match(source, /\[data-conversation-scroll\] :has\(> \[data-chat-flow\]\)\{isolation:isolate\}/);
   assert.match(source, /\.dsh-annotations-dock:has\(\.dsh-annotations-list\)\{z-index:6\}/);
@@ -564,8 +571,8 @@ test('sent annotation sits above the native bubble without replacing attachments
   const sent = source.split('function AnnotationMessages(')[1].split('const annotationTextRule =')[0];
   assert.equal(api.sentPopoverBelow({ top: 50, bottom: 80 }, 150, 700), true);
   assert.equal(api.sentPopoverBelow({ top: 420, bottom: 450 }, 150, 700), false);
-  assert.match(sent, /onMouseEnter: \(\) => setExpanded\(true\)/);
-  assert.match(sent, /onFocus: \(\) => setExpanded\(true\)/);
+  assert.match(sent, /onMouseEnter: open/);
+  assert.match(sent, /onFocus: open/);
   assert.match(sent, /const resize = new ResizeObserver\(place\)/);
   assert.match(source, /\[data-message-bubble\]:has\(\.dsh-annotations-card\)\{position:relative;margin-top:38px\}/);
   assert.match(source, /\[data-message-bubble\] \.dsh-annotations-card\{position:absolute;bottom:calc\(100% \+ 8px\);right:0;width:max-content;max-width:calc\(100vw - 32px\)\}/);
@@ -574,6 +581,22 @@ test('sent annotation sits above the native bubble without replacing attachments
   assert.doesNotMatch(sent, /querySelector\('\[data-message-attachments\]'\)|onClick: \(\) => setExpanded|▸|▾/);
   assert.doesNotMatch(source, /\[data-message-attachments\]\{margin-bottom:38px\}/);
   assert.doesNotMatch(source, /\.dsh-annotations-card-pill\{[^}]*width:100%/);
+});
+
+test('queued annotation preview escapes clipping and follows the viewport', () => {
+  assert.deepEqual(api.placeQueuedPopover({ top: 40, bottom: 70, right: 40 },
+    { width: 320, height: 160 }, { width: 800, height: 600 }),
+  { below: true, top: 70, left: 8 });
+  assert.deepEqual(api.placeQueuedPopover({ top: 420, bottom: 450, right: 795 },
+    { width: 320, height: 150 }, { width: 800, height: 700 }),
+  { below: false, top: 262, left: 472 });
+  const sent = source.split('function AnnotationMessages(')[1].split('const annotationTextRule =')[0];
+  assert.match(sent, /closest\('\[data-queue-dock\]'\)/);
+  assert.match(sent, /portaled && preview \? createPortal\(/);
+  assert.match(sent, /window.addEventListener\('scroll', place, true\)/);
+  assert.match(sent, /window.removeEventListener\('scroll', place, true\)/);
+  assert.match(source, /\.dsh-annotations-card-portal\{position:fixed;/);
+  assert.match(source, /\.dsh-annotations-card-portal \.dsh-annotations-card-body\{position:relative;/);
 });
 
 test('editor keeps the hidden annotation chip when Backspace or a selection reaches it', () => {
