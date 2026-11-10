@@ -93,9 +93,6 @@ test('historical aside XML remains readable without changing its message text', 
     .replace('<annotation_context>', '<aside_context>')
     .replace('</annotation_context>', '</aside_context>');
   assert.deepEqual(api.parseAnnotationContext(xml), { annotations, start: 0, end: xml.length });
-  const parsed = api.extractAnnotationContent([{ type: 'text', text: `before${xml}after` }]);
-  assert.deepEqual(parsed.annotations, annotations);
-  assert.deepEqual(parsed.content, [{ type: 'text', text: 'beforeafter' }]);
   assert.equal(api.parseAnnotationContext(xml.replace('</aside_context>', '</annotation_context>')), undefined);
 });
 
@@ -113,24 +110,69 @@ test('sent annotations render at the beginning, middle, or end without changing 
   assert.equal(api.parseAnnotationContext(xml.replace('index="1"', 'index="2"')), undefined);
 });
 
-test('sent display strips only the XML span and preserves text blocks and attachments', () => {
+test('native user-text rule preserves surrounding text and renders the sent preview', () => {
+  const elements = { ...react, createElement: (type, props, ...children) => ({ type, props: props ?? {}, children }),
+    useState: () => [true, () => {}] };
+  const plugin = module.factory(name => name === 'react' ? elements : { createPortal: node => node });
+  let rule;
+  let renderer;
+  const disposed = [];
+  const slots = {
+    inject: (name, register) => { assert.equal(name, 'conversation.user.text.node'); return register(); },
+    register: (options, component) => {
+      assert.equal(options.name, 'conversation.user.text.node');
+      assert.equal(options.key, 'dsh-annotations');
+      renderer = component;
+      return () => disposed.push('renderer');
+    },
+  };
+  const ctx = {
+    locale: { getSnapshot: () => ({ active: 'zh' }), subscribe: () => () => {} },
+    slots,
+    uiConversation: { userText: { register: value => { rule = value; return () => disposed.push('rule'); } } },
+    effect: (install, id) => id.startsWith('dsh-annotations.user-text') ? disposed.push(install()) : undefined,
+  };
+  plugin.apply(ctx);
+  assert.equal(rule.id, 'dsh-annotations');
+  assert.equal(rule.order, -100);
+  const annotations = [{ text: '所选文本', comment: '这是被你改掉的吧？' }];
+  const xml = api.serializeAnnotations(annotations);
+  const text = `前文 ${xml} 给我份修复方案`;
+  const candidate = rule.match(text, 0, { read: () => undefined });
+  assert.deepEqual(candidate, { id: rule.id, start: 3, end: 3 + xml.length, data: { annotations } });
+  assert.equal(text.slice(0, candidate.start) + text.slice(candidate.end), '前文  给我份修复方案');
+  assert.equal(rule.match(text, candidate.end), undefined);
+  const expand = value => typeof value?.type === 'function' ? expand(value.type(value.props)) : value;
+  const pill = expand(renderer({ node: candidate, raw: xml, interactive: false }));
+  assert.equal(pill.type, 'span');
+  assert.equal(pill.props.className, 'dsh-annotations-card');
+  assert.equal(pill.children[0].type, 'button');
+  assert.match(pill.children[0].children.at(-1), /1 条注释/);
+  const preview = expand(pill.children[1]);
+  assert.equal(preview.type, 'span');
+  assert.equal(preview.props.role, 'list');
+  assert.equal(preview.children[0][0].children[1].children[0].children[0], annotations[0].text);
+  assert.equal(preview.children[0][0].children[1].children[1].children[0], annotations[0].comment);
+  for (const dispose of disposed.filter(value => typeof value === 'function')) dispose();
+  assert.deepEqual(disposed.filter(value => typeof value === 'string'), ['rule', 'renderer']);
+  assert.doesNotMatch(source, /slots\.inject\('conversation\.chat\.node'/);
+});
+
+test('native user-text rule leaves ordinary, malformed, or duplicate XML untouched', () => {
+  const plugin = module.factory(name => name === 'react' ? react : { createPortal: node => node });
+  let rule;
+  plugin.apply({
+    locale: { getSnapshot: () => ({ active: 'en' }), subscribe: () => () => {} },
+    effect: (install, id) => { if (id === 'dsh-annotations.user-text-rule') install(); },
+    uiConversation: { userText: { register: value => { rule = value; return () => {}; } } },
+  });
   const xml = api.serializeAnnotations([{ text: 'passage' }]);
-  const content = [
-    { type: 'text', text: 'before', tone: 'keep' },
-    { type: 'text', text: xml.slice(0, 22) },
-    { type: 'text', text: `${xml.slice(22)} after` },
-    { type: 'image', id: 'image-1' },
-    { type: 'text', text: 'later' },
-  ];
-  const parsed = api.extractAnnotationContent(content);
-  assert.deepEqual(parsed.annotations, [{ text: 'passage' }]);
-  assert.deepEqual(parsed.content, [
-    content[0], { type: 'text', text: '' }, { type: 'text', text: ' after' }, content[3], content[4],
-  ]);
-  assert.deepEqual(content[1], { type: 'text', text: xml.slice(0, 22) });
-  assert.equal(api.extractAnnotationContent([
-    { type: 'text', text: xml.slice(0, 22) }, content[3], { type: 'text', text: xml.slice(22) },
-  ]), undefined);
+  const aside = xml.replaceAll('annotation_context', 'aside_context');
+  assert.deepEqual(rule.match(aside, 0)?.data.annotations, [{ text: 'passage' }]);
+  for (const text of ['ordinary message', xml.replace('</selected_text>', '</wrong_text>'), `${xml}\n${xml}`]) {
+    assert.equal(rule.match(text, 0), undefined);
+  }
+  assert.equal(rule.match(`before${xml}after`, 7), undefined);
 });
 
 test('chip payload rejects a foreign version and keeps anchors', () => {
@@ -456,7 +498,7 @@ test('composer entries scroll to loaded text and share the badge editor', () => 
 
 test('composer and sent annotations share one hover preview layout', () => {
   const dock = source.split('function AnnotationDock(')[1].split('function AnnotationMessages(')[0];
-  const sent = source.split('function AnnotationMessages(')[1].split('function contentText(')[0];
+  const sent = source.split('function AnnotationMessages(')[1].split('const annotationTextRule =')[0];
   const preview = source.split('function AnnotationPreview(')[1].split('function placeDock(')[0];
   assert.match(dock, /h\(AnnotationPreview, \{\s*annotations, locale: language, className: 'dsh-annotations-list'/);
   assert.match(sent, /h\(AnnotationPreview, \{ annotations, locale: language, className: 'dsh-annotations-card-body' \}\)/);
@@ -517,17 +559,16 @@ test('preview shows full quote and comment within one scrollable height limit', 
   assert.doesNotMatch(source, /-webkit-line-clamp|\.dsh-annotations-preview-row-expanded|\.dsh-annotations-preview-expand\{/);
 });
 
-test('sent annotation is a hover pill positioned after attachments', () => {
-  const sent = source.split('function AnnotationMessages(')[1].split('function contentText(')[0];
-  assert.equal(api.placeSentPill({ top: 100 }, { bottom: 230 }), 138);
+test('sent annotation is an inline hover pill using the native attachment layout', () => {
+  const sent = source.split('function AnnotationMessages(')[1].split('const annotationTextRule =')[0];
   assert.equal(api.sentPopoverBelow({ top: 50, bottom: 80 }, 150, 700), true);
   assert.equal(api.sentPopoverBelow({ top: 420, bottom: 450 }, 150, 700), false);
-  assert.match(sent, /querySelector\('\[data-message-attachments\]'\)/);
   assert.match(sent, /onMouseEnter: \(\) => setExpanded\(true\)/);
   assert.match(sent, /onFocus: \(\) => setExpanded\(true\)/);
   assert.match(sent, /const resize = new ResizeObserver\(place\)/);
-  assert.doesNotMatch(sent, /onClick: \(\) => setExpanded|▸|▾/);
-  assert.match(source, /\[data-message-attachments\]\{margin-bottom:38px\}/);
+  assert.match(source, /\.dsh-annotations-card\{position:relative;z-index:8;display:inline-block;/);
+  assert.doesNotMatch(sent, /querySelector\('\[data-message-attachments\]'\)|onClick: \(\) => setExpanded|▸|▾/);
+  assert.doesNotMatch(source, /\[data-message-attachments\]\{margin-bottom:38px\}/);
   assert.doesNotMatch(source, /\.dsh-annotations-card-pill\{[^}]*width:100%/);
 });
 

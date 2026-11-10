@@ -80,11 +80,7 @@ window.__ModuleLoader__.load({
 .dsh-annotations-close:focus-visible{outline:2px solid var(--dsw-alias-brand-primary,Highlight);outline-offset:1px}
 .dsh-annotations-dock:has(.dsh-annotations-list)::before{content:"";position:absolute;left:0;right:0;bottom:100%;height:8px}
 .dsh-annotations-list{left:0}
-.dsh-annotations-message{position:relative;display:flex;flex-direction:column;align-items:flex-end;gap:8px;min-width:0}
-.dsh-annotations-message-body{align-self:stretch;min-width:0}
-.dsh-annotations-message[data-annotations-after-attachments] [data-message-attachments]{margin-bottom:38px}
-.dsh-annotations-message[data-annotations-after-attachments] .dsh-annotations-card{position:absolute;right:0;top:var(--dsh-annotations-sent-top,0px)}
-.dsh-annotations-card{position:relative;z-index:8;align-self:flex-end;width:fit-content;max-width:100%;
+.dsh-annotations-card{position:relative;z-index:8;display:inline-block;vertical-align:middle;max-width:100%;
   font:500 12.5px/1 var(--dsh-font-family,system-ui,sans-serif)}
 .dsh-annotations-dock:has(.dsh-annotations-list){z-index:6}
 .dsh-annotations-card:has(.dsh-annotations-card-body){z-index:9}
@@ -724,7 +720,7 @@ window.__ModuleLoader__.load({
 
     function AnnotationPreview({ annotations, locale, className, onEdit, onRemove }) {
       const messages = MESSAGES[locale];
-      return h('div', { className: `dsh-annotations-preview ${className}`, role: 'list' }, annotations.map((annotation, index) => h('div', {
+      return h('span', { className: `dsh-annotations-preview ${className}`, role: 'list' }, annotations.map((annotation, index) => h('span', {
         key: `annotations-preview-${String(index)}`,
         className: `dsh-annotations-preview-row${onEdit === undefined ? '' : ' dsh-annotations-preview-row-editable'}`,
         role: 'listitem',
@@ -758,10 +754,6 @@ window.__ModuleLoader__.load({
         top: inline ? last.bottom - card.top - dock.height : rail.bottom - card.top + 8,
         inline,
       };
-    }
-
-    function placeSentPill(message, attachments) {
-      return attachments.bottom - message.top + 8;
     }
 
     function sentPopoverBelow(card, height, viewportHeight) {
@@ -966,24 +958,6 @@ window.__ModuleLoader__.load({
       const cardRef = useRef(null);
       const messages = MESSAGES[language];
       useLayoutEffect(() => {
-        const message = cardRef.current?.closest('.dsh-annotations-message');
-        const attachments = message?.querySelector('[data-message-attachments]');
-        if (!message || !attachments) return;
-        // ponytail: native UserContent has no after-attachments slot; use its measured rail until one exists.
-        message.setAttribute('data-annotations-after-attachments', '');
-        const place = () => message.style.setProperty('--dsh-annotations-sent-top',
-          `${String(placeSentPill(message.getBoundingClientRect(), attachments.getBoundingClientRect()))}px`);
-        const resize = new ResizeObserver(place);
-        resize.observe(message);
-        resize.observe(attachments);
-        place();
-        return () => {
-          resize.disconnect();
-          message.removeAttribute('data-annotations-after-attachments');
-          message.style.removeProperty('--dsh-annotations-sent-top');
-        };
-      }, [annotations.length]);
-      useLayoutEffect(() => {
         if (!expanded) return;
         const card = cardRef.current;
         const preview = card?.querySelector('.dsh-annotations-card-body');
@@ -996,7 +970,7 @@ window.__ModuleLoader__.load({
         return () => resize.disconnect();
       }, [expanded]);
       if (annotations.length === 0) return null;
-      return h('div', {
+      return h('span', {
         ref: cardRef, className: 'dsh-annotations-card', 'data-annotations-skip': '',
         onMouseEnter: () => setExpanded(true),
         onMouseLeave: () => setExpanded(false),
@@ -1014,60 +988,15 @@ window.__ModuleLoader__.load({
       );
     }
 
-    function contentText(content) {
-      const runs = [];
-      let current;
-      for (const [index, block] of content.entries()) {
-        if (block?.type !== 'text' || typeof block.text !== 'string') {
-          current = undefined;
-          continue;
-        }
-        if (current === undefined) {
-          current = { from: index, to: index, text: '' };
-          runs.push(current);
-        }
-        current.to = index;
-        current.text += block.text;
-      }
-      return runs;
-    }
-
-    function replaceTextContent(content, run, start, end) {
-      let offset = 0;
-      return content.map((block, index) => {
-        if (index < run.from || index > run.to) return block;
-        const from = Math.max(0, Math.min(block.text.length, start - offset));
-        const to = Math.max(0, Math.min(block.text.length, end - offset));
-        offset += block.text.length;
-        return { ...block, text: block.text.slice(0, from) + block.text.slice(to) };
-      });
-    }
-
-    function extractAnnotationContent(content) {
-      const matches = contentText(content).map(run => ({ run, parsed: parseAnnotationContext(run.text) }))
-        .filter(({ parsed }) => parsed !== undefined);
-      if (matches.length !== 1) return undefined;
-      const { run, parsed } = matches[0];
-      return {
-        annotations: parsed.annotations,
-        content: replaceTextContent(content, run, parsed.start, parsed.end),
-      };
-    }
-
-    function annotatedRenderer(Original, locale) {
-      return function AnnotationUserMessage(props) {
-        const parsed = extractAnnotationContent(props.node.data.content);
-        if (parsed === undefined) return h(Original, props);
-        const node = {
-          ...props.node,
-          data: { ...props.node.data, content: parsed.content },
-        };
-        return h('div', { className: 'dsh-annotations-message' },
-          h(AnnotationMessages, { annotations: parsed.annotations, locale }),
-          h('div', { className: 'dsh-annotations-message-body' }, h(Original, { ...props, node })),
-        );
-      };
-    }
+    const annotationTextRule = {
+      id: SOURCE,
+      order: -100,
+      match(text, from) {
+        const parsed = parseAnnotationContext(text);
+        if (parsed === undefined || parsed.start < from) return;
+        return { id: SOURCE, start: parsed.start, end: parsed.end, data: { annotations: parsed.annotations } };
+      },
+    };
 
     function AnnotationOverlay({ access, locale }) {
       const language = useSyncExternalStore(locale.subscribe, locale.getSnapshot);
@@ -1482,26 +1411,10 @@ window.__ModuleLoader__.load({
         order: 91,
       }, () => h(AnnotationOverlay, { access, locale }))), 'dsh-annotations.overlay');
 
-      const shadow = key => slots.inject('conversation.chat.node', () => {
-        let cachedOriginal;
-        let Cached;
-        const Shadow = (props) => {
-          const original = slots.entries('conversation.chat.node')
-            .find(entry => entry.options.key === key
-              && entry.component !== Shadow
-              && (entry.options.priority ?? 0) >= 0)
-            ?.component;
-          if (original === undefined) return null;
-          if (original !== cachedOriginal || Cached === undefined) {
-            cachedOriginal = original;
-            Cached = annotatedRenderer(cachedOriginal, locale);
-          }
-          return h(Cached, props);
-        };
-        return slots.register({ name: 'conversation.chat.node', key, priority: -100, locale: 'conversation' }, Shadow);
-      });
-      ctx.effect(() => { const dispose = shadow('user'); return () => dispose(); }, 'dsh-annotations.shadow-user');
-      ctx.effect(() => { const dispose = shadow('steering'); return () => dispose(); }, 'dsh-annotations.shadow-steering');
+      ctx.effect(() => ctx.uiConversation.userText.register(annotationTextRule), 'dsh-annotations.user-text-rule');
+      ctx.effect(() => slots.inject('conversation.user.text.node', () => slots.register({
+        name: 'conversation.user.text.node', key: SOURCE,
+      }, ({ node }) => h(AnnotationMessages, { annotations: node.data.annotations, locale }))), 'dsh-annotations.user-text-node');
     }
 
     return {
@@ -1517,7 +1430,6 @@ window.__ModuleLoader__.load({
         rangeEndingInHost,
         serializeAnnotations,
         parseAnnotationContext,
-        extractAnnotationContent,
         chipPayload,
         decodeChip,
         occurrenceEditSpan,
@@ -1533,7 +1445,6 @@ window.__ModuleLoader__.load({
         positionAtAnchor,
         placeMarker,
         placeDock,
-        placeSentPill,
         sentPopoverBelow,
         editsAnnotationChip,
         preserveAnnotationOnDelete,
